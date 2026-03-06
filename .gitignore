@@ -1,0 +1,11 @@
+# Python
+__pycache__/
+*.py[cod]
+api_env/
+
+# Data & Model
+data/
+api_model_info/
+
+# OS
+.DS_Store
