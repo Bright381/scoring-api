@@ -1,7 +1,12 @@
 # Python
 __pycache__/
+utils/__pycache__/
 *.py[cod]
 api_env/
+
+# Local test files
+.pytest.ini
+.pytest_cache
 
 # Data & Model
 data/
