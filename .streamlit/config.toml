@@ -1,8 +1,0 @@
-[server]
-port = 8001
-
-[client]
-showErrorDetails = true
-
-[browser]
-gatherUsageStats = false
