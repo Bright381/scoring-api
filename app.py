@@ -2,22 +2,18 @@ from fastapi import FastAPI, HTTPException
 import joblib
 import pandas as pd
 import json
-from get_data import get_customer_features
-from get_shap import get_png
+from utils.get_data import get_customer_features
+from utils.get_shap import get_png
 
 app = FastAPI(title="Home Credit Default Risk API")
 
 DATA_FOLDER='data'
 
-# features to align one hot encoder labels
-with open("model/params/features_names.json", "r") as f:
-    TRAINING_FEATURES = json.load(f)
-
 # load model
-MODEL = joblib.load('model/model.pkl')
+MODEL = joblib.load('api_model_info/model.pkl')
 
 # get best threshold
-with open('model/params/threshold.txt', 'rt') as f:
+with open('api_model_info/params/threshold.txt', 'rt') as f:
     threshold_value = float(f.read().strip())
 
 

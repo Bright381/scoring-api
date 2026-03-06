@@ -2,7 +2,7 @@
 __pycache__/
 utils/__pycache__/
 *.py[cod]
-api_env/
+.api_env/
 
 # Local test files
 .pytest.ini
