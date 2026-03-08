@@ -9,8 +9,8 @@ utils/__pycache__/
 .pytest_cache
 
 # Data & Model
-data/
-api_model_info/
+# data/
+# api_model_info/
 
 # OS
 .DS_Store
