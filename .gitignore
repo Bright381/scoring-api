@@ -12,5 +12,8 @@ utils/__pycache__/
 # data/
 # api_model_info/
 
+# UI files
+streamlit_ui/.streamlit_env/
+
 # OS
 .DS_Store
