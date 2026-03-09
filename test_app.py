@@ -6,8 +6,6 @@ from app import app, MODEL, threshold_value
 
 client = TestClient(app)
 
-# ── helpers ──────────────────────────────────────────────────────────────────
-
 VALID_ID   = 100001
 INVALID_ID = 999999999
 
@@ -15,7 +13,7 @@ INVALID_ID = 999999999
 # One class per endpoint
 # Local test until the api can have access to data without uploading it to github
 
-# ── /predict ─────────────────────────────────────────────────────────────────
+# /predict
 
 class TestPredict:
 
@@ -68,7 +66,7 @@ class TestPredict:
         assert data["status"] == expected
 
 
-# ── /explain ─────────────────────────────────────────────────────────────────
+# /explain
 
 class TestExplain:
 
@@ -94,7 +92,7 @@ class TestExplain:
         assert r.content[:8] == b'\x89PNG\r\n\x1a\n'
 
 
-# ── /explore ─────────────────────────────────────────────────────────────────
+# /explore
 
 class TestExplore:
 
@@ -126,9 +124,7 @@ class TestExplore:
         assert all(isinstance(v, (int, float)) for v in values)
 
 
-
-
-# ── quick model check ───────────────────────────────────────────────────────
+# quick model check
 
 class TestModel:
 

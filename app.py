@@ -2,6 +2,7 @@ from fastapi import FastAPI, HTTPException
 import joblib
 import pandas as pd
 import json
+import uvicorn
 from utils.get_data import get_customer_features
 from utils.get_shap import get_png
 
@@ -81,8 +82,5 @@ def explore(sk_id: int):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-
-
 if __name__ == "__main__":
-    import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
