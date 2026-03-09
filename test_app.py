@@ -11,7 +11,6 @@ INVALID_ID = 999999999
 
 
 # One class per endpoint
-# Local test until the api can have access to data without uploading it to github
 
 # /predict
 
