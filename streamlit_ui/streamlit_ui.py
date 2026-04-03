@@ -1,6 +1,7 @@
 import streamlit as st
 import requests
 import pandas as pd
+import base64
 
 API_URL = "http://localhost:8000"
 
@@ -38,37 +39,31 @@ if predict_btn:
     else:
         with st.spinner("Running prediction..."):
             try:
-                pred_resp = requests.get(f"{API_URL}/predict/{sk_id}")
-                if pred_resp.status_code == 404:
+                resp = requests.get(f"{API_URL}/predict/{sk_id}")
+                if resp.status_code == 404:
                     st.error("Customer ID not found.")
-                elif pred_resp.status_code != 200:
-                    st.error(f"API error: {pred_resp.status_code}")
+                elif resp.status_code != 200:
+                    st.error(f"API error: {resp.status_code}")
                 else:
-                    pred = pred_resp.json()
-                    status_class = "approved" if pred["status"] == "Approved" else "rejected"
-                    status_color = "status-approved" if pred["status"] == "Approved" else "status-rejected"
+                    resp = resp.json()
+                    image_bytes = base64.b64decode(resp['loc_imp'])
+                    status_class = "approved" if resp["status"] == "Approved" else "rejected"
+                    status_color = "status-approved" if resp["status"] == "Approved" else "status-rejected"
                     st.markdown(f"""
                         <div class="result-card {status_class}">
                             <div style="display:flex; justify-content:space-between; align-items:center;">
-                                <div><div class="metric-label">Decision</div><div class="{status_color}">{pred["status"]}</div></div>
-                                <div><div class="metric-label">Default Probability</div><div class="metric-value">{pred["probability"]:.1%}</div></div>
-                                <div><div class="metric-label">Threshold</div><div class="metric-value">{pred["threshold"]:.1%}</div></div>
+                                <div><div class="metric-label">Decision</div><div class="{status_color}">{resp["status"]}</div></div>
+                                <div><div class="metric-label">Default Probability</div><div class="metric-value">{resp["probability"]:.1%}</div></div>
+                                <div><div class="metric-label">Threshold</div><div class="metric-value">{resp["threshold"]:.1%}</div></div>
                             </div>
                         </div>
                     """, unsafe_allow_html=True)
+
+                    st.markdown('<div class="section-title">Local Feature Importance</div>', unsafe_allow_html=True)
+                    
+                    st.image(image_bytes)
             except requests.exceptions.ConnectionError:
                 st.error("Could not connect to API. Is it running?")
-
-        with st.spinner("Loading SHAP explanation..."):
-            try:
-                explain_resp = requests.get(f"{API_URL}/explain/{sk_id}")
-                if explain_resp.status_code == 200:
-                    st.markdown('<div class="section-title">Local Feature Importance</div>', unsafe_allow_html=True)
-                    st.image(explain_resp.content)
-                else:
-                    st.error(f"Explanation error {explain_resp.status_code}: {explain_resp.text}")
-            except requests.exceptions.ConnectionError:
-                st.error("Could not connect to API.")
 
 if explore_btn:
     if not sk_id:

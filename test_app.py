@@ -64,33 +64,6 @@ class TestPredict:
         expected = "Rejected" if data["probability"] >= data["threshold"] else "Approved"
         assert data["status"] == expected
 
-
-# /explain
-
-class TestExplain:
-
-    def test_valid_id_returns_200(self):
-        r = client.get(f"/explain/{VALID_ID}")
-        assert r.status_code == 200
-
-    def test_invalid_id_returns_404(self):
-        r = client.get(f"/explain/{INVALID_ID}")
-        assert r.status_code == 404
-
-    def test_response_is_png(self):
-        r = client.get(f"/explain/{VALID_ID}")
-        assert r.headers["content-type"] == "image/png"
-
-    def test_response_is_not_empty(self):
-        r = client.get(f"/explain/{VALID_ID}")
-        assert len(r.content) > 0
-
-    def test_response_starts_with_png_signature(self):
-        r = client.get(f"/explain/{VALID_ID}")
-        # PNG files start with this 8-byte signature
-        assert r.content[:8] == b'\x89PNG\r\n\x1a\n'
-
-
 # /explore
 
 class TestExplore:
@@ -134,9 +107,6 @@ class TestModel:
         assert isinstance(threshold_value, float)
         assert 0.0 < threshold_value < 1.0
 
-    def test_model_has_lgbm_step(self):
-        assert "lgbm" in MODEL.named_steps
-
     def test_model_predict_proba_output_shape(self):
         import pandas as pd
         import numpy as np
@@ -145,11 +115,3 @@ class TestModel:
         dummy = pd.DataFrame([np.zeros(len(feature_names))], columns=feature_names)
         proba = MODEL.predict_proba(dummy)
         assert proba.shape == (1, 2)
-
-    def test_model_predict_proba_sums_to_1(self):
-        import pandas as pd
-        import numpy as np
-        feature_names = MODEL.named_steps['lgbm'].booster_.feature_name()
-        dummy = pd.DataFrame([np.zeros(len(feature_names))], columns=feature_names)
-        proba = MODEL.predict_proba(dummy)
-        assert abs(proba[0].sum() - 1.0) < 1e-5

@@ -1,0 +1,65 @@
+name: Python Testing
+
+on:
+  push:
+    branches: [ "main" ]
+
+jobs:
+  test:
+    runs-on: debian-12-bookworm-v20260310
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+
+    - name: Run tests with pytest
+      run: |
+        pytest test_app.py
+
+  deploy:
+    runs-on: debian-12-bookworm-v20260310
+    needs: test
+    permissions:
+          contents: 'read'
+          id-token: 'write'
+    
+    steps:
+      - name: Authenticate to Google Cloud
+        # You may pin to the exact commit or the version.
+        # uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093
+        uses: google-github-actions/auth@v3
+        with:
+          # ID of the default project to use for future API calls and invocations. If
+      # unspecified, this action will attempt to extract the value from other
+      # inputs such as "service_account" or "credentials_json".
+          project_id: project-9f6840f4-e944-44b8-895 
+          # The full identifier of the Workload Identity Provider, including the
+      # project number, pool name, and provider name. If provided, this must be
+      # the full identifier which includes all parts, for example:
+      # "projects/123456789/locations/global/workloadIdentityPools/my-pool/providers/my-provider".
+      # This is mutually exclusive with "credentials_json".
+          workload_identity_provider: projects/23678029784/locations/global/workloadIdentityPools/github-pool/providers/github-provider
+          # Email address or unique identifier of the Google Cloud service account for
+      # which to generate credentials. This is required if
+      # "workload_identity_provider" is specified.
+          service_account: github-deployer      
+                
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Deploy to Cloud Run
+        uses: google-github-actions/deploy-cloudrun@v2
+        with:
+          service: scoring-api
+          region: europe-west9-a
+          source: ./

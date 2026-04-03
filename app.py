@@ -2,9 +2,8 @@ from fastapi import FastAPI, HTTPException
 import joblib
 import pandas as pd
 import json
-import uvicorn
 from utils.get_data import get_customer_features
-from utils.get_shap import get_png
+from utils.get_shap import get_png, get_importances, plot
 
 app = FastAPI(title="Home Credit Default Risk API")
 
@@ -36,27 +35,16 @@ def predict(sk_id: int):
 
         prediction = 1 if probability >= threshold_value else 0
 
+        ev, importances, sv = get_importances(features_row, MODEL)
+        
         return {
             "sk_id": sk_id,
             "prediction": prediction,
             "probability": round(float(probability), 4),
             "threshold": round(threshold_value, 4),
-            "status": "Rejected" if prediction == 1 else "Approved"
+            "status": "Rejected" if prediction == 1 else "Approved",
+            "loc_imp": plot(features_row, ev, importances, sv) # get_png(features_row, MODEL)
         }
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.get("/explain/{sk_id}")
-def explain(sk_id: int):
-    try:
-        features_row = get_customer_features(sk_id)
-        if features_row is None or features_row.shape[0]==0:
-            raise HTTPException(status_code=404, detail="Customer ID not found")
-        
-        return get_png(features_row, MODEL)
 
     except HTTPException:
         raise
@@ -82,5 +70,8 @@ def explore(sk_id: int):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+
+
 if __name__ == "__main__":
+    import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
