@@ -1,5 +1,4 @@
-name: Python Testing
-
+name: Python Testing & Google Cloud Deployement
 on:
   push:
     branches: [ "main" ]
