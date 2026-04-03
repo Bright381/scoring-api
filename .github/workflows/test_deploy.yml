@@ -50,7 +50,7 @@ jobs:
           # Email address or unique identifier of the Google Cloud service account for
       # which to generate credentials. This is required if
       # "workload_identity_provider" is specified.
-          service_account: github-deployer      
+          service_account: github-deployer-383@project-9f6840f4-e944-44b8-895.iam.gserviceaccount.com     
                 
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v2
