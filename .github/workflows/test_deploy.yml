@@ -36,9 +36,6 @@ jobs:
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v3
         with:
-          # ID of the default project to use for future API calls and invocations. If
-      # unspecified, this action will attempt to extract the value from other
-      # inputs such as "service_account" or "credentials_json".
           project_id: project-9f6840f4-e944-44b8-895 
           # The full identifier of the Workload Identity Provider, including the
       # project number, pool name, and provider name. If provided, this must be
