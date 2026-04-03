@@ -37,11 +37,6 @@ jobs:
         uses: google-github-actions/auth@v3
         with:
           project_id: project-9f6840f4-e944-44b8-895 
-          # The full identifier of the Workload Identity Provider, including the
-      # project number, pool name, and provider name. If provided, this must be
-      # the full identifier which includes all parts, for example:
-      # "projects/123456789/locations/global/workloadIdentityPools/my-pool/providers/my-provider".
-      # This is mutually exclusive with "credentials_json".
           workload_identity_provider: projects/23678029784/locations/global/workloadIdentityPools/github-pool/providers/github-provider
           # Email address or unique identifier of the Google Cloud service account for
       # which to generate credentials. This is required if
