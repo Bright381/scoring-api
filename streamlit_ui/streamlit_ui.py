@@ -11,18 +11,73 @@ st.set_page_config(page_title="Credit Scoring", page_icon="🏦", layout="wide")
 # --- CSS Styling Adjustments ---
 st.markdown("""
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;600&display=swap');
-        html, body, [class*="css"] { font-family: 'DM Sans', sans-serif; background-color: #121218; color: #e0e0e0; }
-        .title { font-family: 'DM Mono', monospace; font-size: 2rem; font-weight: 500; color: #ffffff; letter-spacing: -0.02em; margin-bottom: 0.2rem; }
-        .subtitle { font-size: 0.9rem; color: #a0a0b0; margin-bottom: 2rem; font-weight: 300; }
-        .result-card { background: #1e212c; border-radius: 12px; padding: 1.5rem; border: 1px solid #3a3f58; margin-bottom: 1rem; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3); }
-        .approved { border-left: 4px solid #10b981; } /* Emerald Green */
-        .rejected { border-left: 4px solid #ef4444; } /* Red */
-        .metric-label { font-family: 'DM Mono', monospace; font-size: 0.75rem; color: #a0a0b0; text-transform: uppercase; letter-spacing: 0.08em; }
-        .metric-value { font-size: 2rem; font-weight: 600; color: #ffffff; }
-        .status-approved { color: #10b981; font-size: 1.4rem; font-weight: 600; }
-        .status-rejected { color: #ef4444; font-size: 1.4rem; font-weight: 600; }
-        .section-title { font-family: 'DM Mono', monospace; font-size: 0.8rem; color: #a0a0b0; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 1rem; padding-bottom: 0.5rem; border-bottom: 1px solid #3a3f58; }
+        /* Global Dark Mode Setup */
+        html, body, [class*="css"] { 
+            font-family: 'DM Sans', sans-serif; 
+            background-color: #0d1117; /* Very dark GitHub/VSCode background */
+            color: #c9d1d9; /* Light gray text for readability */
+        }
+        /* Title Styling */
+        .title { 
+            font-family: 'DM Mono', monospace; 
+            font-size: 2rem; 
+            font-weight: 500; 
+            color: #ffffff; /* Pure white title */
+            letter-spacing: -0.02em; 
+            margin-bottom: 0.2rem; 
+        }
+        /* Subtitle Styling */
+        .subtitle { 
+            font-size: 0.9rem; 
+            color: #8b949e; /* Muted gray for subtitle */
+            margin-bottom: 2rem; 
+            font-weight: 300; 
+        }
+        /* Result Card Styling (The main container) */
+        .result-card { 
+            background: #161b22; /* Slightly lighter dark background for cards */
+            border-radius: 12px; 
+            padding: 1.5rem; 
+            border: 1px solid #30363d; /* Subtle border */
+            margin-bottom: 1rem; 
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
+        }
+        /* Status Colors */
+        .approved { border-left: 4px solid #2ea043; } /* Green */
+        .rejected { border-left: 4px solid #f85149; } /* Red */
+        
+        /* Metric Labels (Small text) */
+        .metric-label { 
+            font-family: 'DM Mono', monospace; 
+            font-size: 0.75rem; 
+            color: #8b949e; /* Muted gray for labels */
+            text-transform: uppercase; 
+            letter-spacing: 0.08em; 
+        }
+        /* Metric Values (Large text) */
+        .metric-value { 
+            font-size: 2rem; 
+            font-weight: 600; 
+            color: #ffffff; /* White for high impact values */
+        }
+        /* Status Text Colors */
+        .status-approved { color: #2ea043; font-size: 1.4rem; font-weight: 600; }
+        .status-rejected { color: #f85149; font-size: 1.4rem; font-weight: 600; }
+        
+        /* Section Titles */
+        .section-title { 
+            font-family: 'DM Mono', monospace; 
+            font-size: 0.8rem; 
+            color: #8b949e; /* Muted gray for section titles */
+            text-transform: uppercase; 
+            letter-spacing: 0.1em; 
+            margin-bottom: 1rem; 
+            padding-bottom: 0.5rem; 
+            border-bottom: 1px solid #30363d;
+        }
+
+        /* Streamlit specific adjustments for better dark mode integration */
+        div[data-testid="stSidebar"] { background-color: #0d1117 !important; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -100,12 +155,12 @@ if explore_btn:
                 else:
                     data = explore_resp.json()
                     customer = pd.Series(data)
-                    # Store data in session state for potential later use/display consistency
+                    # Store data in session state for consistency across interactions
                     st.session_state["customer_data"] = data 
+                    st.session_state["current_sk_id"] = sk_id
 
                     st.markdown('<div class="section-title">Key Metrics</div>', unsafe_allow_html=True)
                     m1, m2, m3, m4 = st.columns(4)
-                    # Using .get() with default values for safety
                     age = int(-customer.get('DAYS_BIRTH', 0) / 365) if customer.get('DAYS_BIRTH') is not None else 'N/A'
                     income = f"${customer.get('AMT_INCOME_TOTAL', 0):,.0f}" if customer.get('AMT_INCOME_TOTAL') is not None else "N/A"
                     credit = f"${customer.get('AMT_CREDIT', 0):,.0f}" if customer.get('AMT_CREDIT') is not None else "N/A"
@@ -118,10 +173,9 @@ if explore_btn:
                     st.divider()
 
                     st.markdown('<div class="section-title">Column Explorer</div>', unsafe_allow_html=True)
-                    all_cols = [k for k, v in data.items() if v is not None and k != 'SK_ID_CURR'] # Exclude ID from general explorer list
+                    all_cols = [k for k, v in data.items() if v is not None and k != 'SK_ID_CURR'] 
                     selected = st.multiselect("Select columns to inspect", options=all_cols)
                     if selected:
-                        # Create a DataFrame for display, handling potential non-numeric types gracefully
                         explorer_data = {col: customer[col] for col in selected}
                         explorer_df = pd.DataFrame(list(explorer_data.items()), columns=["Feature", "Value"])
                         st.dataframe(explorer_df, use_container_width=True, hide_index=True)
@@ -153,7 +207,3 @@ if "customer_data" in st.session_state and sk_id == st.session_state["current_sk
     if selected:
         display = pd.DataFrame({"Column": selected, "Value": [customer[c] for c in selected]})
         st.dataframe(display, use_container_width=True, hide_index=True)
-
-# Update session state tracking if a new ID is entered manually after initial load
-if sk_id and st.session_state.get("current_sk_id") != sk_id:
-    st.session_state["current_sk_id"] = sk_id
