@@ -30,9 +30,14 @@ jobs:
     needs: test
     
     steps:
-    - name: Trigger Render deploy hook
+    - name: Trigger Render deploy hook for api
       env:
-        RENDER_DEPLOY_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK }}
+        RENDER_DEPLOY_HOOK_API: ${{ secrets.RENDER_DEPLOY_HOOK_API }}
       run: |
-        curl -fsSL "$RENDER_DEPLOY_HOOK"
+        curl -fsSL "$RENDER_DEPLOY_HOOK_API"
 
+    - name: Trigger Render deploy hook for UI
+      env:
+        RENDER_DEPLOY_HOOK_UI: ${{ secrets.RENDER_DEPLOY_HOOK_UI }}
+      run: |
+        curl -fsSL "$RENDER_DEPLOY_HOOK_UI"

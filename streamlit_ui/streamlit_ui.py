@@ -3,7 +3,7 @@ import requests
 import pandas as pd
 import base64
 
-API_URL = "http://localhost:8000"
+API_URL = os.environ["API_URL"]
 
 st.set_page_config(page_title="Credit Scoring", page_icon="🏦", layout="wide")
 
