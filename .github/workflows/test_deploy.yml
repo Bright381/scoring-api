@@ -1,4 +1,4 @@
-name: Python Testing & Google Cloud Deployement
+name: Python Testing & Render Deployment
 on:
   push:
     branches: [ "main" ]
@@ -28,27 +28,11 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     needs: test
-    permissions:
-          contents: 'read'
-          id-token: 'write'
     
     steps:
-      - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@v3
-        with:
-          project_id: project-9f6840f4-e944-44b8-895 
-          workload_identity_provider: projects/23678029784/locations/global/workloadIdentityPools/github-pool/providers/github-provider
-          # Email address or unique identifier of the Google Cloud service account for
-      # which to generate credentials. This is required if
-      # "workload_identity_provider" is specified.
-          service_account: github-deployer-383@project-9f6840f4-e944-44b8-895.iam.gserviceaccount.com     
-                
-      - name: Set up Cloud SDK
-        uses: google-github-actions/setup-gcloud@v2
+    - name: Trigger Render deploy hook
+      env:
+        RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK }}
+      run: |
+        curl -fsSL "$RENDER_DEPLOY_HOOK"
 
-      - name: Deploy to Cloud Run
-        uses: google-github-actions/deploy-cloudrun@v2
-        with:
-          service: scoring-api
-          region: europe-west9
-          source: ./
