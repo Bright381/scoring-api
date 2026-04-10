@@ -17,7 +17,7 @@ with open('api_model_info/params/threshold.txt', 'rt') as f:
     threshold_value = float(f.read().strip())
 
 
-@app.get('/')
+@app.get('/check_api')
 def running():
     return "API is running."
 
