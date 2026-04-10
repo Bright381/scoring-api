@@ -1,8 +1,8 @@
+import os
 import streamlit as st
 import requests
 import pandas as pd
 import base64
-import os
 
 API_URL = os.environ["API_URL"]
 
