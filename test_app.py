@@ -32,6 +32,8 @@ class TestPredict:
         assert "probability" in data
         assert "threshold"   in data
         assert "status"      in data
+        assert "local_imp"   in data
+        assert "global_imp"   in data
 
     def test_probability_is_between_0_and_1(self):
         r = client.get(f"/predict/{VALID_ID}")

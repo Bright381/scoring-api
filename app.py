@@ -16,6 +16,7 @@ MODEL = joblib.load('api_model_info/model.pkl')
 with open('api_model_info/params/threshold.txt', 'rt') as f:
     threshold_value = float(f.read().strip())
 
+global_imp=get_base64_image("api_model_info/lgbm_importances.png")
 
 @app.get('/check_api')
 def running():
@@ -43,7 +44,8 @@ def predict(sk_id: int):
             "probability": round(float(probability), 4),
             "threshold": round(threshold_value, 4),
             "status": "Rejected" if prediction == 1 else "Approved",
-            "loc_imp": plot(features_row, ev, importances, sv) # get_png(features_row, MODEL)
+            "loc_imp": plot(features_row, ev, importances, sv), # get_png(features_row, MODEL)
+            "global_imp": global_imp
         }
 
     except HTTPException:

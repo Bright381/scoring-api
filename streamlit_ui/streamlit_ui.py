@@ -54,7 +54,7 @@ st.markdown("""
             text-transform: uppercase; 
             letter-spacing: 0.08em; 
         }
-        /* Metric Values (Large text) */
+        /* Metric Values */
         .metric-value { 
             font-size: 2rem; 
             font-weight: 600; 
@@ -86,11 +86,11 @@ st.markdown('<div class="subtitle">Home Credit Default Risk — Internal Risk As
 
 # --- Input and Control Columns ---
 sk_id = st.text_input("Customer ID (SK_ID_CURR)", placeholder="100001")
-col1, col2, col3 = st.columns([1, 1, 0.5]) # Adjusted layout for the new button
+col1, col2, col3 = st.columns([1, 1, 0.5])
 
 predict_btn = col1.button("Predict & Explain", type="primary")
 explore_btn = col2.button("Load Customer Data")
-check_api_btn = col3.button("Check API Health") # New Button
+check_api_btn = col3.button("Check API Health")
 
 st.divider()
 
@@ -120,7 +120,7 @@ if predict_btn:
                     st.error(f"API error occurred: Status Code {resp.status_code}")
                 else:
                     resp = resp.json()
-                    image_bytes = base64.b64decode(resp['loc_imp'])
+                    loc_imp, global_imp = base64.b64decode(resp['loc_imp']), base64.b64decode(resp['global_imp'])
                     status_class = "approved" if resp["status"] == "Approved" else "rejected"
                     status_color = "status-approved" if resp["status"] == "Approved" else "status-rejected"
 
@@ -135,7 +135,8 @@ if predict_btn:
                     """, unsafe_allow_html=True)
 
                     st.markdown('<div class="section-title">Local Feature Importance</div>', unsafe_allow_html=True)
-                    st.image(image_bytes, caption="Feature Importance Plot")
+                    st.image(loc_imp, caption="Feature Importance Plot")
+                    st.image(global_imp, caption="Feature Importance Plot")
 
             except requests.exceptions.ConnectionError:
                 st.error("Could not connect to API. Please ensure the service is running.")
