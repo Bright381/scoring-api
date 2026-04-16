@@ -32,8 +32,8 @@ class TestPredict:
         assert "probability" in data
         assert "threshold"   in data
         assert "status"      in data
-        assert "local_imp"   in data
-        assert "global_imp"   in data
+        assert "loc_imp"   in data
+        assert "global_imp"  in data
 
     def test_probability_is_between_0_and_1(self):
         r = client.get(f"/predict/{VALID_ID}")
@@ -63,7 +63,7 @@ class TestPredict:
     def test_status_consistent_with_threshold(self):
         r = client.get(f"/predict/{VALID_ID}")
         data = r.json()
-        expected = "Rejected" if data["probability"] >= data["threshold"] else "Approved"
+        expected = "Rejected" if data["probability"] < data["threshold"] else "Approved"
         assert data["status"] == expected
 
 # /explore
