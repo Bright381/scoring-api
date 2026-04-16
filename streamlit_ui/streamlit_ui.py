@@ -128,8 +128,8 @@ if predict_btn:
                         <div class="result-card {status_class}">
                             <div style="display:flex; justify-content:space-between; align-items:center;">
                                 <div><div class="metric-label">Decision</div><div class="{status_color}">{resp["status"]}</div></div>
-                                <div><div class="metric-label">Default Probability</div><div class="metric-value">{resp["probability"]:.4f}</div></div>
-                                <div><div class="metric-label">Threshold</div><div class="metric-value">{resp["threshold"]:.4f}</div></div>
+                                <div><div class="metric-label">Payment Capability Score</div><div class="metric-value">{resp["probability"]:.4f}</div></div>
+                                <div><div class="metric-label">Minimum Score/\nThreshold</div><div class="metric-value">{resp["threshold"]:.4f}</div></div>
                             </div>
                         </div>
                     """, unsafe_allow_html=True)
