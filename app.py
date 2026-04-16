@@ -4,6 +4,7 @@ import pandas as pd
 import json
 from utils.get_data import get_customer_features
 from utils.get_shap import get_png, get_importances, plot
+import base64
 
 app = FastAPI(title="Home Credit Default Risk API")
 
