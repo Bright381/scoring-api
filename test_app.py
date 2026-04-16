@@ -55,7 +55,7 @@ class TestPredict:
     def test_status_consistent_with_prediction(self):
         r = client.get(f"/predict/{VALID_ID}")
         data = r.json()
-        if data["prediction"] == 1:
+        if data["prediction"] == 0:
             assert data["status"] == "Rejected"
         else:
             assert data["status"] == "Approved"
