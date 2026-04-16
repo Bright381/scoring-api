@@ -35,7 +35,7 @@ def predict(sk_id: int):
             raise HTTPException(status_code=404, detail="Customer ID not found")
 
         # Predict
-        probability = MODEL.predict_proba(features_row)[0][1]
+        probability = MODEL.named_steps['lgbm'].predict_proba(features_row)[0][1]
 
         prediction = 1 if probability >= threshold_value else 0
 
