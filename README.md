@@ -1,8 +1,9 @@
 # scoring-api
 
 ## Live Link
-* **Web UI:** [https://your-streamlit-app-link.streamlit.app/](https://your-streamlit-app-link.streamlit.app/)
-
+* **API:** [https://scoring-api-bhx1.onrender.com](https://scoring-api-bhx1.onrender.com)
+* **Web UI:** [https://streamlit-ui-zuyw.onrender.com](https://streamlit-ui-zuyw.onrender.com)
+**Click on the API link to start it up. Clicking only the Web UI will not start up the API.**
 
 ## Project Overview
 This project implements a **Credit Scoring System** for a financial company. It predicts the probability of a customer defaulting on a loan and provides transparency through local/global feature importance.
