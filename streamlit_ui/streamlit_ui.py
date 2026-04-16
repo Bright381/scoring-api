@@ -135,8 +135,9 @@ if predict_btn:
                     """, unsafe_allow_html=True)
 
                     st.markdown('<div class="section-title">Local Feature Importance</div>', unsafe_allow_html=True)
-                    st.image(loc_imp, caption="Feature Importance Plot")
-                    st.image(global_imp, caption="Feature Importance Plot")
+                    st.image(loc_imp, caption="")
+                    st.markdown('<div class="section-title">Global Feature Importance</div>', unsafe_allow_html=True)
+                    st.image(global_imp, caption="")
 
             except requests.exceptions.ConnectionError:
                 st.error("Could not connect to API. Please ensure the service is running.")
