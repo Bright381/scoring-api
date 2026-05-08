@@ -30,7 +30,7 @@ with open("api_model_info/lgbm_importances.png", "rb") as image_file:
 def running():
     return "API is running."
 
-@app.post("/predict/{sk_id}")
+@app.get("/predict/{sk_id}")
 def predict(sk_id: int):
     try:
         # Transform ID into features
@@ -104,7 +104,7 @@ def custom_predict(sk_id: int, overrides: FeatureOverrides = None):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/explore/{sk_id}")
+@app.get("/explore/{sk_id}")
 def explore(sk_id: int):
     try:
         tables_dic = get_raw_features(sk_id)
