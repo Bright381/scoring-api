@@ -26,6 +26,7 @@ with open('api_model_info/params/threshold.txt', 'rt') as f:
 with open("api_model_info/lgbm_importances.png", "rb") as image_file:
         global_imp = base64.b64encode(image_file.read()).decode('utf-8')
 
+
 @app.get('/check_api')
 def running():
     return "API is running."
