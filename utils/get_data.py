@@ -1,7 +1,7 @@
 import psycopg
 import pandas as pd
 import os
-from Tyoing import Any
+from Typing import Any
 
 from single_row_preprocessing import (
     preprocess,
