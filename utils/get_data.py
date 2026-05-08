@@ -10,11 +10,18 @@ from utils.single_row_preprocessing import (
 
 DB_URL = os.environ['DB_URL']
 
-with psycopg.connect(DB_URL) as conn:
-    with conn.cursor() as cur:
-        cur.execute(f"""SELECT * FROM table_names;""")
-        TABLES=cur.fetchall()
+def get_table_names():
+    with psycopg.connect(DB_URL) as conn:
+        with conn.cursor() as cur:
+            cur.execute(f"""
+                SELECT table_name 
+                FROM information_schema.tables 
+                WHERE table_schema = 'public';;"""
+            )
+            tables=cur.fetchall()
+    return tables
 
+TABLES = get_table_names()
 
 def fetch_table_rows(sk_id, table):
     with psycopg.connect(DB_URL) as conn:
