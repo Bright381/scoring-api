@@ -3,7 +3,7 @@ import pandas as pd
 import os
 from typing import Any
 
-from single_row_preprocessing import (
+from utils.single_row_preprocessing import (
     preprocess,
     apply_custom_values
 )
