@@ -45,7 +45,7 @@ def predict(sk_id: int):
 
         #############################################
         # List of features the model expects
-        expected = MODEL.named_steps['lgbm'].feature_name_
+        expected_features = MODEL.named_steps['lgbm'].feature_name_
         expected_truncated = [f[:63] for f in expected_features]
         customer_features = customer_features[expected_truncated]
 
