@@ -139,26 +139,26 @@ def explore(sk_id: int):
 
         for table_name, df in tables_dic.items():
                     if df is not None and not df.empty:
-                        # To satisfy the 'numeric' test, we should return a single row 
-                        # or a flattened version if the test expects values to be numbers.
-                        # If the test expects the dictionary values to be the features:
-                        
-                        # Convert only the first row to a dict to keep it flat
-                        # This aligns with how pytest usually checks 'explore' results
+                        # Get the first row as a dictionary
                         row_dict = df.iloc[0].to_dict()
                         
                         for col, val in row_dict.items():
-                            # Handle naming collisions between tables
+                            # Create a unique key for each column (table_column)
                             key = f"{table_name}_{col}"
                             
-                            # Convert to standard Python types for JSON/Pytest
+                            # Sanitize for JSON (Replace NaN with None)
                             if pd.isna(val):
                                 response_data[key] = None
                             else:
                                 try:
+                                    # Ensure numeric types for the test
                                     response_data[key] = float(val) if '.' in str(val) else int(val)
                                 except:
-                                    response_data[key] = val
+                                    response_data[key] = str(val)
+
+        if not response_data:
+            raise HTTPException(status_code=404, detail="Customer ID not found")
+
         return response_data
 
     except HTTPException:
