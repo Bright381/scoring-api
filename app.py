@@ -41,28 +41,26 @@ def predict(sk_id: int):
             raise HTTPException(status_code=404, detail="Customer ID not found")
 
         # Predict
-        customer_features = customer_features.drop(columns=['SK_ID_CURR', 'TARGET'], errors='ignore')
+        customer_features = customer_features.drop(columns=['SK_ID_CURR', 'TARGET', 'Unnamed: 0'], errors='ignore')
 
         #############################################
         # List of features the model expects
         expected = MODEL.named_steps['lgbm'].feature_name_
+        expected_truncated = [f[:63] for f in expected_features]
+        customer_features = customer_features[expected_truncated]
 
         # List of columns currently in your dataframe
-        current = customer_features.columns.tolist()
+        # current = customer_features.columns.tolist()
 
-        # Find columns that are in the dataframe but NOT in the model
-        extra_cols = [c for c in current if c not in expected]
+        # # Find columns that are in the dataframe but NOT in the model
+        # extra_cols = [c for c in current if c not in expected]
 
-        # Find columns the model wants but are MISSING from the dataframe
-        missing_cols = [c for c in expected if c not in current]
+        # # Find columns the model wants but are MISSING from the dataframe
+        # missing_cols = [c for c in expected if c not in current]
 
-        print(f"DEBUG: Found {len(current)} columns.")
-        print(f"DEBUG: Extra columns (779 vs 777): {extra_cols}")
-        print(f"DEBUG: Missing columns: {missing_cols}")
-        #############################################
-
-
-
+        # print(f"DEBUG: Found {len(current)} columns.")
+        # print(f"DEBUG: Extra columns (779 vs 777): {extra_cols}")
+        # print(f"DEBUG: Missing columns: {missing_cols}")
 
         probability = MODEL.named_steps['lgbm'].predict_proba(customer_features)[0][1]
 
