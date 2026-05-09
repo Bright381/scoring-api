@@ -146,8 +146,8 @@ def explore(sk_id: int):
             # .to_dict(orient='records') turns the DataFrame into a LIST of rows
             response_data[table_name] = df.to_dict(orient='records')
 
-            if not response_data:
-                raise HTTPException(status_code=404, detail="Customer ID not found")
+        if not response_data:
+            raise HTTPException(status_code=404, detail="Customer ID not found")
 
         return response_data
 
