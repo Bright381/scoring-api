@@ -35,6 +35,9 @@ def fetch_table_rows(sk_id, table):
             rows=cur.fetchall()
             cols = [desc[0] for desc in cur.description]
             df=pd.DataFrame(rows, columns=cols)
+            if 'TARGET' in df.columns:
+                df = df.drop(columns=['TARGET'])
+            df = df.apply(pd.to_numeric, errors='coerce')
 
     return df
 
