@@ -9,8 +9,9 @@ utils/__pycache__/
 .pytest_cache
 
 # Data & Model
-# data/
+data/
 # api_model_info/
+create_db.py
 
 # UI files
 streamlit_ui/.streamlit_env/
