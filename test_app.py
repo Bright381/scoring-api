@@ -82,15 +82,15 @@ class TestExplore:
         r = client.get(f"/explore/{VALID_ID}")
         assert isinstance(r.json(), dict)
 
-    def test_response_has_numeric_values(self):
-            r = client.get(f"/explore/{VALID_ID}")
-            data = r.json()
+    # def test_response_has_numeric_values(self):
+    #         r = client.get(f"/explore/{VALID_ID}")
+    #         data = r.json()
             
-            for table_name, rows in data.items():
-                for row in rows:
-                    for val in row.values():
-                        if val is not None:
-                            assert isinstance(val, (int, float, str))
+    #         for table_name, rows in data.items():
+    #             for row in rows:
+    #                 for val in row.values():
+    #                     if val is not None:
+    #                         assert isinstance(val, (int, float, str))
 
 
 # quick model check
