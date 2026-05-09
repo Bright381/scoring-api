@@ -129,13 +129,27 @@ def custom_predict(sk_id: int, overrides: FeatureOverrides = None):
 @app.get("/explore/{sk_id}")
 def explore(sk_id: int):
     try:
-        tables_dic = get_raw_features(sk_id)
+        tables_dic = get_raw_tables_dic(sk_id)
         ########""
         # if customer_features is None or customer_features.shape[0]==0:       
         #     raise HTTPException(status_code=404, detail="Customer ID not found")
         
         ###### MAKE PLOTS HERE ?
-        return tables_dic
+        response_data = {}
+
+        for table_name, df in tables_dic.items():
+            # If the ID wasn't found, the DF might be empty
+            if df is None or df.empty:
+                continue 
+            
+            # This is the magic line:
+            # .to_dict(orient='records') turns the DataFrame into a LIST of rows
+            response_data[table_name] = df.to_dict(orient='records')
+
+            if not response_data:
+                raise HTTPException(status_code=404, detail="Customer ID not found")
+
+        return response_data
 
     except HTTPException:
         raise
