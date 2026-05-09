@@ -16,10 +16,10 @@ def get_table_names():
             cur.execute(f"""
                 SELECT table_name 
                 FROM information_schema.tables 
-                WHERE table_schema = 'public';;"""
+                WHERE table_schema = 'public';"""
             )
             tables=cur.fetchall()
-    return tables
+    return [t[0] for t in tables]
 
 TABLES = get_table_names()
 
@@ -33,6 +33,8 @@ def fetch_table_rows(sk_id, table):
                             WHERE 
                                 "SK_ID_CURR"={sk_id};""")
             rows=cur.fetchall()
+            if not rows:
+                return pd.DataFrame()
             cols = [desc[0] for desc in cur.description]
             df=pd.DataFrame(rows, columns=cols)
             if 'TARGET' in df.columns:
