@@ -26,12 +26,26 @@ TABLES = get_table_names()
 def fetch_table_rows(sk_id, table):
     with psycopg.connect(DB_URL) as conn:
         with conn.cursor() as cur:
-            cur.execute(f"""SELECT
-                                *
-                            FROM 
-                                {table} 
-                            WHERE 
-                                "SK_ID_CURR"={sk_id};""")
+            cur.execute(f"""
+            WITH allowed_bureau_ids as (
+                SELECT
+                    DISTINCT("SK_ID_BUREAU")
+                FROM
+                    bureau
+                WHERE
+                    "SK_ID_CURR"={sk_id}
+            )
+            SELECT
+                *
+            FROM 
+                {table} 
+            WHERE 
+                "SK_ID_CURR"={sk_id}
+                OR "SK_ID_BUREAU" IN (
+                    SELECT
+                        "SK_ID_BUREAU"
+                    FROM
+                        allowed_bureau_ids);""")
             rows=cur.fetchall()
             if not rows:
                 return pd.DataFrame()
