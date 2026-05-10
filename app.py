@@ -130,38 +130,65 @@ def custom_predict(sk_id: int, overrides: FeatureOverrides = None):
 def explore(sk_id: int):
     try:
         tables_dic = get_raw_tables_dic(sk_id)
-        ########""
-        # if customer_features is None or customer_features.shape[0]==0:       
-        #     raise HTTPException(status_code=404, detail="Customer ID not found")
-        
-        ###### MAKE PLOTS HERE ?
-        response_data = {}
-
+        response_data: Dict[str, Dict[str, Any]] = {}
+ 
         for table_name, df in tables_dic.items():
-                    if df is not None and not df.empty:
-                        # Get the first row as a dictionary
-                        row_dict = df.iloc[0].to_dict()
-                        
-                        for col, val in row_dict.items():
-                            # Create a unique key for each column (table_column)
-                            key = f"{table_name}_{col}"
-                            
-                            # Sanitize for JSON (Replace NaN with None)
-                            if pd.isna(val):
-                                response_data[key] = None
-                            else:
-                                try:
-                                    # Ensure numeric types for the test
-                                    response_data[key] = float(val) if '.' in str(val) else int(val)
-                                except:
-                                    response_data[key] = str(val)
-
+            if df is None or df.empty:
+                continue
+ 
+            row_dict = df.iloc[0].to_dict()
+            table_data: Dict[str, Any] = {}
+ 
+            for col, val in row_dict.items():
+                try:
+                    is_na = pd.isna(val)
+                except (TypeError, ValueError):
+                    is_na = False
+ 
+                if is_na:
+                    table_data[col] = None
+                else:
+                    try:
+                        table_data[col] = float(val) if '.' in str(val) else int(val)
+                    except (TypeError, ValueError):
+                        table_data[col] = str(val)
+ 
+            if table_data:
+                response_data[table_name] = table_data
+ 
         if not response_data:
             raise HTTPException(status_code=404, detail="Customer ID not found")
-
+ 
         return response_data
-
+ 
     except HTTPException:
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/distributions/{table}")
+def distributions(
+    table: str,
+    column: str = Query(..., description="Column name to compute the distribution for"),
+    sk_id: int = Query(..., description="Customer SK_ID_CURR"),
+):
+    """
+    Returns histogram data for `column` in `table` together with the
+    customer's own value and their percentile rank.
+    """
+    if table not in TABLES:
+        raise HTTPException(status_code=400, detail=f"Unknown table '{table}'.")
+ 
+    try:
+        stats = get_column_stats(table, column, sk_id)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+ 
+    if stats["n"] == 0:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No data found for column '{column}' in table '{table}'.",
+        )
+ 
+    return stats
