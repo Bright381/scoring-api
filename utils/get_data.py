@@ -1,5 +1,6 @@
 import psycopg
 import pandas as pd
+import numpy as np
 import os
 from typing import Any
 
@@ -24,28 +25,34 @@ def get_table_names():
 TABLES = get_table_names()
 
 def fetch_table_rows(sk_id, table):
+    
     with psycopg.connect(DB_URL) as conn:
         with conn.cursor() as cur:
-            cur.execute(f"""
-            WITH allowed_bureau_ids as (
+            if table!="bureau_balance":
+                query=f"""
                 SELECT
-                    DISTINCT("SK_ID_BUREAU")
+                    *
+                FROM 
+                    {table}
+                WHERE 
+                    "SK_ID_CURR"=%s;"""
+            else:
+                query=f"""
+                SELECT
+                    *
                 FROM
-                    bureau
+                    {table}
                 WHERE
-                    "SK_ID_CURR"={sk_id}
-            )
-            SELECT
-                *
-            FROM 
-                {table} 
-            WHERE 
-                "SK_ID_CURR"={sk_id}
-                OR "SK_ID_BUREAU" IN (
-                    SELECT
-                        "SK_ID_BUREAU"
-                    FROM
-                        allowed_bureau_ids);""")
+                    "SK_ID_BUREAU" IN (
+                        SELECT 
+                            DISTINCT("SK_ID_BUREAU")
+                        FROM
+                            bureau
+                        WHERE
+                            "SK_ID_CURR"=%s
+                    );
+                """
+            cur.execute(query, (sk_id,))
             rows=cur.fetchall()
             if not rows:
                 return pd.DataFrame()
@@ -64,7 +71,7 @@ def get_raw_tables_dic(sk_id: int) -> dict[str, Any]:
     return tables_dic
 
 def get_custom_features(sk_id, overrides = None):
-    tables_dic = get_raw_features(sk_id)
+    tables_dic = get_raw_tables_dic(sk_id)
     tables_dic = apply_custom_values(tables_dic, overrides)
 
     for table in tables_dic.values():    
