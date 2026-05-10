@@ -59,3 +59,72 @@ def get_custom_features(sk_id, overrides = None):
 
 def get_preprocessed_features(sk_id):
     return fetch_table_rows(sk_id, 'preprocessed_data')
+
+
+### shoud treat table without sk_id apart
+def get_column_stats(table: str, column: str, sk_id: int) -> dict:
+    """
+    Fetch population histogram data for a column and the customer's own value.
+ 
+    Samples up to 10 000 rows from the given table for the histogram, then
+    retrieves the customer's specific value separately. Returns a dict with:
+        - bin_edges, counts  — histogram arrays (30 bins)
+        - customer_value     — the customer's raw value (None if missing)
+        - percentile         — customer position in the population (0-100)
+        - mean, median, std  — summary statistics
+        - n                  — sample size used for the histogram
+    """
+    with psycopg.connect(DB_URL) as conn:
+        with conn.cursor() as cur:
+            # Population sample (cap at 10k to keep it fast)
+            cur.execute(
+                f'SELECT "{column}" FROM {table} WHERE "{column}" IS NOT NULL LIMIT 10000'
+            )
+            pop_rows = cur.fetchall()
+ 
+            # Customer value (first matching row)
+            cur.execute(
+                f'SELECT "{column}" FROM {table} WHERE "SK_ID_CURR" = %s LIMIT 1',
+                (sk_id,)
+            )
+            cust_row = cur.fetchone()
+ 
+    population = np.array([r[0] for r in pop_rows], dtype=float)
+    population = population[~np.isnan(population)]
+ 
+    customer_val = None
+    if cust_row is not None and cust_row[0] is not None:
+        try:
+            customer_val = float(cust_row[0])
+        except (TypeError, ValueError):
+            customer_val = None
+ 
+    if population.size == 0:
+        return {
+            "bin_edges": [],
+            "counts": [],
+            "customer_value": customer_val,
+            "percentile": None,
+            "mean": None,
+            "median": None,
+            "std": None,
+            "n": 0,
+        }
+ 
+    counts, bin_edges = np.histogram(population, bins=30)
+ 
+    percentile = None
+    if customer_val is not None:
+        percentile = float(np.mean(population < customer_val) * 100)
+ 
+    return {
+        "bin_edges": bin_edges.tolist(),
+        "counts": counts.tolist(),
+        "customer_value": customer_val,
+        "percentile": round(percentile, 1) if percentile is not None else None,
+        "mean": round(float(np.mean(population)), 4),
+        "median": round(float(np.median(population)), 4),
+        "std": round(float(np.std(population)), 4),
+        "n": int(population.size),
+    }
+ 
