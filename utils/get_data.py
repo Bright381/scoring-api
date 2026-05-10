@@ -74,9 +74,7 @@ def get_custom_features(sk_id, overrides = None):
     tables_dic = get_raw_tables_dic(sk_id)
     tables_dic = apply_custom_values(tables_dic, overrides)
 
-    for table in tables_dic.values():    
-        tables_dic[table] = preprocess(table)
-    return tables_dic
+    return preprocess(tables_dic)
 
 def get_preprocessed_features(sk_id):
     return fetch_table_rows(sk_id, 'preprocessed_data')

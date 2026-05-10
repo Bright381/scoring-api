@@ -4,14 +4,17 @@ from typing import Optional, Dict, Any
 import joblib
 import pandas as pd
 import json
+import base64
 from utils.get_data import (
     get_preprocessed_features,
     get_custom_features,
-    get_raw_tables_dic
+    get_raw_tables_dic,
+    TABLES,
+    get_column_stats
 )
 from utils.get_shap import get_png, get_importances, plot
 from utils.single_row_preprocessing import preprocess
-import base64
+
 
 app = FastAPI(title="Home Credit Default Risk API")
 
