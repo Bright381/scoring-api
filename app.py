@@ -3,6 +3,7 @@ from pydantic import BaseModel, Field
 from typing import Optional, Dict, Any
 import joblib
 import pandas as pd
+import numpy as np
 import json
 import base64
 from utils.get_data import (
@@ -136,25 +137,21 @@ def explore(sk_id: int):
         response_data: Dict[str, Dict[str, Any]] = {}
  
         for table_name, df in tables_dic.items():
-            if df is None or df.empty:
+            if not isinstance(df, pd.DataFrame) or df.empty:
                 continue
  
             row_dict = df.iloc[0].to_dict()
             table_data: Dict[str, Any] = {}
  
             for col, val in row_dict.items():
-                try:
-                    is_na = pd.isna(val)
-                except (TypeError, ValueError):
-                    is_na = False
- 
-                if is_na:
+                if pd.isna(val):
                     table_data[col] = None
+                elif isinstance(val, (np.integer, int)):
+                    table_data[col] = int(val)
+                elif isinstance(val, (np.floating, float)):
+                    table_data[col] = float(val)
                 else:
-                    try:
-                        table_data[col] = float(val) if '.' in str(val) else int(val)
-                    except (TypeError, ValueError):
-                        table_data[col] = str(val)
+                    table_data[col] = str(val)
  
             if table_data:
                 response_data[table_name] = table_data
@@ -167,6 +164,8 @@ def explore(sk_id: int):
     except HTTPException:
         raise
     except Exception as e:
+        # Print the error so it shows up in pytest output if it fails!
+        print(f"Explore Endpoint Crash: {repr(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
