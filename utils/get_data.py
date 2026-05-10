@@ -33,7 +33,7 @@ def fetch_table_rows(sk_id, table):
                     SELECT
                         *
                     FROM 
-                        {table}
+                        "{table}"
                     WHERE 
                         "SK_ID_CURR"=%s;"""
                 else:
@@ -41,7 +41,7 @@ def fetch_table_rows(sk_id, table):
                     SELECT
                         *
                     FROM
-                        {table}
+                        "{table}"
                     WHERE
                         "SK_ID_BUREAU" IN (
                             SELECT 
