@@ -25,43 +25,44 @@ def get_table_names():
 TABLES = get_table_names()
 
 def fetch_table_rows(sk_id, table):
-    
-    with psycopg.connect(DB_URL) as conn:
-        with conn.cursor() as cur:
-            if table!="bureau_balance":
-                query=f"""
-                SELECT
-                    *
-                FROM 
-                    {table}
-                WHERE 
-                    "SK_ID_CURR"=%s;"""
-            else:
-                query=f"""
-                SELECT
-                    *
-                FROM
-                    {table}
-                WHERE
-                    "SK_ID_BUREAU" IN (
-                        SELECT 
-                            DISTINCT("SK_ID_BUREAU")
-                        FROM
-                            bureau
-                        WHERE
-                            "SK_ID_CURR"=%s
-                    );
-                """
-            cur.execute(query, (sk_id,))
-            rows=cur.fetchall()
-            if not rows:
-                return pd.DataFrame()
-            cols = [desc[0] for desc in cur.description]
-            df=pd.DataFrame(rows, columns=cols)
-            if 'TARGET' in df.columns:
-                df = df.drop(columns=['TARGET'])
-            df = df.apply(pd.to_numeric, errors='coerce')
-
+    try:
+        with psycopg.connect(DB_URL) as conn:
+            with conn.cursor() as cur:
+                if table!="bureau_balance":
+                    query=f"""
+                    SELECT
+                        *
+                    FROM 
+                        {table}
+                    WHERE 
+                        "SK_ID_CURR"=%s;"""
+                else:
+                    query=f"""
+                    SELECT
+                        *
+                    FROM
+                        {table}
+                    WHERE
+                        "SK_ID_BUREAU" IN (
+                            SELECT 
+                                DISTINCT("SK_ID_BUREAU")
+                            FROM
+                                bureau
+                            WHERE
+                                "SK_ID_CURR"=%s
+                        );
+                    """
+                cur.execute(query, (sk_id,))
+                rows=cur.fetchall()
+                if not rows:
+                    return pd.DataFrame()
+                cols = [desc[0] for desc in cur.description]
+                df=pd.DataFrame(rows, columns=cols)
+                if 'TARGET' in df.columns:
+                    df = df.drop(columns=['TARGET'])
+                df = df.apply(pd.to_numeric, errors='coerce')
+    except Exception as e:
+        raise ValueError(f"Failed fetching table: {table}, due to error: {e}")
     return df
 
 def get_raw_tables_dic(sk_id: int) -> dict[str, Any]:
