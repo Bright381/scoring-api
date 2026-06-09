@@ -14,8 +14,9 @@ This project implements a **Credit Scoring System** for a financial company. It 
 3.  **Streamlit UI:** Streamlit interface for loan officers to visualize client data and scores.
 
 ## Structure
-
+```
 ├── api_model_info/  # Model data
 ├── streamlit_ui/    # Streamlit UI code
 ├── utils/           # Data fecthing tools
 └── data/            # Data sample
+```
