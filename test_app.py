@@ -1,18 +1,12 @@
 import pytest
-import json
-import math
 from fastapi.testclient import TestClient
-from app import app, MODEL, threshold_value
+from app import app, LGBM_MODEL, threshold_value
 
 client = TestClient(app)
 
 VALID_ID   = 100001
 INVALID_ID = 999999999
 
-
-# One class per endpoint
-
-# /predict
 
 class TestPredict:
 
@@ -66,8 +60,6 @@ class TestPredict:
         expected = "Rejected" if data["probability"] < data["threshold"] else "Approved"
         assert data["status"] == expected
 
-# /explore
-
 class TestExplore:
 
     def test_valid_id_returns_200(self):
@@ -82,23 +74,32 @@ class TestExplore:
         r = client.get(f"/explore/{VALID_ID}")
         assert isinstance(r.json(), dict)
 
-    # def test_response_has_numeric_values(self):
-    #         r = client.get(f"/explore/{VALID_ID}")
-    #         data = r.json()
-            
-    #         for table_name, rows in data.items():
-    #             for row in rows:
-    #                 for val in row.values():
-    #                     if val is not None:
-    #                         assert isinstance(val, (int, float, str))
+    def test_response_not_empty(self):
+        r = client.get(f"/explore/{VALID_ID}")
+        assert len(r.json()) > 0
 
+class TestCustomPredict:
 
-# quick model check
+    def test_valid_id_returns_200(self):
+        r = client.post(f"/custom_predict/{VALID_ID}", json={"overrides": {}})
+        assert r.status_code == 200
+
+    def test_invalid_id_returns_404(self):
+        r = client.post(f"/custom_predict/{INVALID_ID}", json={"overrides": {}})
+        assert r.status_code == 404
+
+    def test_response_has_expected_fields(self):
+        r = client.post(f"/custom_predict/{VALID_ID}", json={"overrides": {}})
+        data = r.json()
+        assert "sk_id"       in data
+        assert "prediction"  in data
+        assert "probability" in data
+        assert "status"      in data
 
 class TestModel:
 
     def test_model_is_loaded(self):
-        assert MODEL is not None
+        assert LGBM_MODEL is not None
 
     def test_threshold_is_valid(self):
         assert isinstance(threshold_value, float)
@@ -108,7 +109,7 @@ class TestModel:
         import pandas as pd
         import numpy as np
         # build a dummy single row of zeros with the right feature names
-        feature_names = MODEL.named_steps['lgbm'].booster_.feature_name()
+        feature_names = LGBM_MODEL.booster_.feature_name()
         dummy = pd.DataFrame([np.zeros(len(feature_names))], columns=feature_names)
-        proba = MODEL.predict_proba(dummy)
+        proba = LGBM_MODEL.predict_proba(dummy)
         assert proba.shape == (1, 2)
