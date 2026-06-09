@@ -1,34 +1,32 @@
 from fastapi import FastAPI, HTTPException, Body, Query
 from pydantic import BaseModel, Field
-from typing import Optional, Dict, Any
+from typing import Dict, Any
 import joblib
 import pandas as pd
 import numpy as np
-import json
 import base64
 from utils.get_data import (
     get_preprocessed_features,
-    get_custom_features,
     get_raw_tables_dic,
     TABLES,
     get_column_stats
 )
-from utils.get_shap import get_png, get_importances, plot
-from utils.single_row_preprocessing import preprocess
+from utils.get_shap import get_importances, plot
+from utils.single_row_preprocessing import preprocess, apply_custom_values
 
 
 app = FastAPI(title="Home Credit Default Risk API")
 
 # load model
-MODEL = joblib.load('api_model_info/model.pkl')
+LGBM_MODEL = joblib.load('api_model_info/model.pkl').named_steps['lgbm']
 
 # get best threshold
 with open('api_model_info/params/threshold.txt', 'rt') as f:
     threshold_value = float(f.read().strip())
 
-    # global feature importance
+# global feature importance
 with open("api_model_info/lgbm_importances.png", "rb") as image_file:
-        global_imp = base64.b64encode(image_file.read()).decode('utf-8')
+    global_imp = base64.b64encode(image_file.read()).decode('utf-8')
 
 
 @app.get('/check_api')
@@ -47,30 +45,17 @@ def predict(sk_id: int):
         # Predict
         customer_features = customer_features.drop(columns=['SK_ID_CURR', 'TARGET', 'Unnamed: 0'], errors='ignore')
 
-        #############################################
         # List of features the model expects
-        expected_features = MODEL.named_steps['lgbm'].feature_name_
+        expected_features = LGBM_MODEL.feature_name_
         expected_truncated = [f[:63] for f in expected_features]
         customer_features = customer_features[expected_truncated]
 
-        # List of columns currently in your dataframe
-        # current = customer_features.columns.tolist()
 
-        # # Find columns that are in the dataframe but NOT in the model
-        # extra_cols = [c for c in current if c not in expected]
-
-        # # Find columns the model wants but are MISSING from the dataframe
-        # missing_cols = [c for c in expected if c not in current]
-
-        # print(f"DEBUG: Found {len(current)} columns.")
-        # print(f"DEBUG: Extra columns (779 vs 777): {extra_cols}")
-        # print(f"DEBUG: Missing columns: {missing_cols}")
-
-        probability = MODEL.named_steps['lgbm'].predict_proba(customer_features)[0][1]
+        probability = LGBM_MODEL.predict_proba(customer_features)[0][1]
 
         prediction = 1 if probability >= threshold_value else 0
 
-        ev, importances, sv = get_importances(customer_features, MODEL)
+        ev, importances, sv = get_importances(customer_features, LGBM_MODEL)
         
         return {
             "sk_id": sk_id,
@@ -95,24 +80,33 @@ class FeatureOverrides(BaseModel):
 @app.post("/custom_predict/{sk_id}")
 def custom_predict(sk_id: int, overrides: FeatureOverrides = None):
     try:
-        if overrides is None:
-            customer_features = get_preprocessed_features(sk_id)
-            if customer_features is None or customer_features.shape[0] == 0:
-                raise HTTPException(status_code=404, detail="Customer ID not found")
-
-        else:
+        # Get raw tables for the customer
+        raw_tables_dict = get_raw_tables_dic(sk_id)
+        
+        if raw_tables_dict is None or all(df.empty for df in raw_tables_dict.values()):
+            raise HTTPException(status_code=404, detail="Customer ID not found")
+        
+        # Apply overrides if provided
+        override_dict = {}
+        raw_custom_features = raw_tables_dict
+        if overrides is not None:
             override_dict = overrides.model_dump(exclude_none=True)
-            raw_tables_dict = get_raw_tables_dic(sk_id)
-            ##### TO REWRITE
-            # if raw_tables_dict is None or customer_raw_features.shape[0] == 0:
-            #     raise HTTPException(status_code=404, detail="Customer ID not found")
+            raw_custom_features = apply_custom_values(raw_tables_dict, override_dict)
+            
+        # Preprocess the (potentially modified) raw features
+        customer_features = preprocess(raw_custom_features)
+        
+        # Select only features expected by the model
+        expected_features = LGBM_MODEL.feature_name_
+        expected_truncated = [f[:63] for f in expected_features]
+        customer_features = customer_features[expected_truncated]
 
-            customer_features = preprocess(customer_raw_features)
-
-        probability = MODEL.named_steps['lgbm'].predict_proba(customer_features)[0][1]
+        # Make predictions
+        probability = LGBM_MODEL.predict_proba(customer_features)[0][1]
         prediction = 1 if probability >= threshold_value else 0
 
-        ev, importances, sv = get_importances(customer_features, MODEL)
+        # Get importances
+        ev, importances, sv = get_importances(customer_features, LGBM_MODEL)
 
         return {
             "sk_id": sk_id,
