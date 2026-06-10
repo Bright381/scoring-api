@@ -36,7 +36,7 @@ def running():
 @app.get("/predict/{sk_id}")
 def predict(sk_id: int):
     try:
-        # Transform ID into features
+        # Get preprocessed features
         customer_features = get_preprocessed_features(sk_id)
 
         if customer_features is None or customer_features.shape[0]==0:
@@ -47,8 +47,7 @@ def predict(sk_id: int):
 
         # List of features the model expects
         expected_features = LGBM_MODEL.feature_name_
-        expected_truncated = [f[:63] for f in expected_features]
-        customer_features = customer_features[expected_truncated]
+        customer_features = customer_features[expected_features]
 
 
         probability = LGBM_MODEL.predict_proba(customer_features)[0][1]
@@ -98,8 +97,7 @@ def custom_predict(sk_id: int, overrides: FeatureOverrides = None):
         
         # Select only features expected by the model
         expected_features = LGBM_MODEL.feature_name_
-        expected_truncated = [f[:63] for f in expected_features]
-        customer_features = customer_features[expected_truncated]
+        customer_features = customer_features[expected_features]
 
         # Make predictions
         probability = LGBM_MODEL.predict_proba(customer_features)[0][1]
