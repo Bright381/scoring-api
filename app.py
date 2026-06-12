@@ -44,11 +44,11 @@ def predict(sk_id: int):
 
         # Predict
         customer_features = customer_features.drop(columns=['SK_ID_CURR', 'TARGET', 'Unnamed: 0'], errors='ignore')
-
         # List of features the model expects
         expected_features = LGBM_MODEL.feature_name_
-        customer_features = customer_features[expected_features]
-        customer_features = customer_features.reindex(columns=expected_features, fill_value=0)
+        expected_truncated = [f[:63] for f in expected_features]
+        customer_features = customer_features[expected_truncated]
+
 
         probability = LGBM_MODEL.predict_proba(customer_features)[0][1]
 
@@ -97,7 +97,8 @@ def custom_predict(sk_id: int, overrides: FeatureOverrides = None):
         
         # Select only features expected by the model
         expected_features = LGBM_MODEL.feature_name_
-        customer_features = customer_features[expected_features]
+        expected_truncated = [f[:63] for f in expected_features]
+        customer_features = customer_features[expected_truncated]
 
         # Make predictions
         probability = LGBM_MODEL.predict_proba(customer_features)[0][1]

@@ -8,7 +8,8 @@ from utils.single_row_preprocessing import (
     preprocess,
     apply_custom_values
 )
-
+from dotenv import load_dotenv
+load_dotenv()
 DB_URL = os.environ['DB_URL']
 
 def get_table_names():

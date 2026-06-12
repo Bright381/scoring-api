@@ -7,7 +7,7 @@ import matplotlib
 matplotlib.use('Agg')
 
 def get_importances(features_row, model):
-    explainer = shap.TreeExplainer(model.named_steps['lgbm'])
+    explainer = shap.TreeExplainer(model)
     shap_values = explainer.shap_values(features_row)
 
     if isinstance(shap_values, list):

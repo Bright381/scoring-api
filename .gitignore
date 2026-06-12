@@ -3,7 +3,8 @@ __pycache__/
 utils/__pycache__/
 *.py[cod]
 .api_env/
-.env/
+.env
+.venv
 
 # Local test files
 .pytest.ini
