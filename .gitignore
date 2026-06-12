@@ -3,6 +3,7 @@ __pycache__/
 utils/__pycache__/
 *.py[cod]
 .api_env/
+.env/
 
 # Local test files
 .pytest.ini
@@ -10,8 +11,7 @@ utils/__pycache__/
 
 # Data & Model
 data/
-# api_model_info/
-create_db.py
+api_model_info/
 
 # UI files
 streamlit_ui/.streamlit_env/
