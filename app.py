@@ -97,10 +97,10 @@ def custom_predict(sk_id: int, overrides: FeatureOverrides = None):
 
         # ONLY apply custom values if there are actual overrides provided!
         if override_dict: 
-            raw_custom_features = apply_custom_values(raw_tables_dict, override_dict)
-            
+            raw_custom_features_dict = apply_custom_values(raw_tables_dict, override_dict)
+
         # Preprocess the (potentially modified) raw features
-        customer_features = preprocess(raw_custom_features)
+        customer_features = preprocess(raw_custom_features_dict)
             
         # Preprocess the (potentially modified) raw features
         customer_features = preprocess(raw_custom_features)

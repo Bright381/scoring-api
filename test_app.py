@@ -89,7 +89,7 @@ class TestCustomPredict:
         assert r.status_code == 404
 
     def test_response_has_expected_fields(self):
-        r = client.post(f"/custom_predict/{VALID_ID}", json={"overrides": {}})
+        r = client.post(f"/custom_predict/{VALID_ID}", json={"overrides": {"CODE_GENDER": 0}})
         data = r.json()
         assert "sk_id"       in data
         assert "prediction"  in data

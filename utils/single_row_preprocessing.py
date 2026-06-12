@@ -262,7 +262,7 @@ def credit_card_balance(cc, sk_id: int, num_rows = None):
     return cc_agg
 
 
-def preprocess(tables_dic: dict, sk_id, overrides: dict) -> pd.DataFrame:
+def preprocess(tables_dic: dict, sk_id) -> pd.DataFrame:
     for func in [application_train_test, change_positive_class]:
         df = func(tables_dic['application_test'], sk_id)
     df = df.merge(bureau_and_balance(tables_dic['bureau'], tables_dic['bureau_balance']), on='SK_ID_CURR', how='left')
