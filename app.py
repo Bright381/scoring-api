@@ -85,12 +85,22 @@ def custom_predict(sk_id: int, overrides: FeatureOverrides = None):
         if raw_tables_dict is None or all(df.empty for df in raw_tables_dict.values()):
             raise HTTPException(status_code=404, detail="Customer ID not found")
         
-        # Apply overrides if provided
+        # Initialize default values
         override_dict = {}
         raw_custom_features = raw_tables_dict
+
+        # Extract actual overrides safely
         if overrides is not None:
-            override_dict = overrides.model_dump(exclude_none=True)
+            dumped = overrides.model_dump(exclude_none=True)
+            # Pull the inner dictionary out of the Pydantic wrapper
+            override_dict = dumped.get("overrides", {})
+
+        # ONLY apply custom values if there are actual overrides provided!
+        if override_dict: 
             raw_custom_features = apply_custom_values(raw_tables_dict, override_dict)
+            
+        # Preprocess the (potentially modified) raw features
+        customer_features = preprocess(raw_custom_features)
             
         # Preprocess the (potentially modified) raw features
         customer_features = preprocess(raw_custom_features)
