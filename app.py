@@ -48,7 +48,7 @@ def predict(sk_id: int):
         # List of features the model expects
         expected_features = LGBM_MODEL.feature_name_
         customer_features = customer_features[expected_features]
-
+        customer_features = customer_features.reindex(columns=expected_features, fill_value=0)
 
         probability = LGBM_MODEL.predict_proba(customer_features)[0][1]
 
