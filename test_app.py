@@ -81,15 +81,15 @@ class TestExplore:
 class TestCustomPredict:
 
     def test_valid_id_returns_200(self):
-        r = client.post(f"/custom_predict/{VALID_ID}", json={"overrides": {"CODE_GENDER": 0}})
+        r = client.post(f"/custom_predict/{VALID_ID}", json={"CODE_GENDER": 0})
         assert r.status_code == 200
 
     def test_invalid_id_returns_404(self):
-        r = client.post(f"/custom_predict/{INVALID_ID}", json={"overrides": {"CODE_GENDER": 0}})
+        r = client.post(f"/custom_predict/{INVALID_ID}", json={"CODE_GENDER": 0})
         assert r.status_code == 404
 
     def test_response_has_expected_fields(self):
-        r = client.post(f"/custom_predict/{VALID_ID}", json={"overrides": {"CODE_GENDER": 0}})
+        r = client.post(f"/custom_predict/{VALID_ID}", json={"CODE_GENDER": 0})
         data = r.json()
         assert "sk_id"       in data
         assert "prediction"  in data
