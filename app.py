@@ -81,12 +81,9 @@ def custom_predict(sk_id: int, overrides: FeatureOverrides = None):
     try:
         # Get raw tables for the customer
         raw_tables_dict = get_raw_tables_dic(sk_id)
-        
         if raw_tables_dict is None or all(df.empty for df in raw_tables_dict.values()):
             raise HTTPException(status_code=404, detail="Customer ID not found")
         
-        # Initialize default values
-        override_dict = {}
         override_dict = overrides.model_dump(exclude_none=True)
 
         raw_custom_features_dict = apply_custom_values(raw_tables_dict, override_dict)
