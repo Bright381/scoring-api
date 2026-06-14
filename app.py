@@ -89,15 +89,9 @@ def custom_predict(sk_id: int, overrides: FeatureOverrides = None):
         override_dict = {}
         raw_custom_features = raw_tables_dict
 
-        # Extract actual overrides safely
-        if overrides is not None:
-            dumped = overrides.model_dump(exclude_none=True)
-            # Pull the inner dictionary out of the Pydantic wrapper
-            override_dict = dumped.get("overrides", {})
+        override_dict = overrides.model_dump(exclude_none=True)
 
-        # ONLY apply custom values if there are actual overrides provided!
-        if override_dict: 
-            raw_custom_features_dict = apply_custom_values(raw_tables_dict, override_dict)
+        raw_custom_features_dict = apply_custom_values(raw_tables_dict, override_dict)
 
         # Preprocess the (potentially modified) raw features
         customer_features = preprocess(raw_custom_features_dict)
