@@ -87,11 +87,11 @@ def custom_predict(sk_id: int, overrides: FeatureOverrides = None):
         
         # Initialize default values
         override_dict = {}
-        raw_custom_features = raw_tables_dict
-
         override_dict = overrides.model_dump(exclude_none=True)
 
         raw_custom_features_dict = apply_custom_values(raw_tables_dict, override_dict)
+
+        customer_features = preprocess(raw_custom_features_dict, sk_id)
 
         # Predict
         customer_features = customer_features.drop(columns=['SK_ID_CURR', 'TARGET', 'Unnamed: 0'], errors='ignore')

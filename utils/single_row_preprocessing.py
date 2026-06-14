@@ -263,6 +263,10 @@ def credit_card_balance(cc, sk_id: int, num_rows = None):
 
 
 def preprocess(tables_dic: dict, sk_id) -> pd.DataFrame:
+    """
+    Take a dictionary of tables {'table': dataframe or dict}.
+    Returns a dataframe.
+    """
     for func in [application_train_test, change_positive_class]:
         df = func(tables_dic['application_test'], sk_id)
     df = df.merge(bureau_and_balance(tables_dic['bureau'], tables_dic['bureau_balance']), on='SK_ID_CURR', how='left')
@@ -274,6 +278,11 @@ def preprocess(tables_dic: dict, sk_id) -> pd.DataFrame:
     return df
 
 def apply_custom_values(tables_dic: dict, overrides: dict) -> dict:
+    """
+    Take a dictionary tables_dic of dataframes, or dictionaries, with the
+    original data, and a dictionary overrides of values to edit {'column': value}.
+    Return a dictionary in the same format as tables_dic.
+    """
     if overrides is None:
         return tables_dic
 

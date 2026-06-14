@@ -12,7 +12,7 @@ from dotenv import load_dotenv
 load_dotenv()
 DB_URL = os.environ['DB_URL']
 
-def get_table_names():
+def get_table_names() -> list:
     with psycopg.connect(DB_URL) as conn:
         with conn.cursor() as cur:
             cur.execute(f"""
@@ -25,7 +25,7 @@ def get_table_names():
 
 TABLES = get_table_names()
 
-def fetch_table_rows(sk_id, table):
+def fetch_table_rows(sk_id: int, table: str) -> pd.DataFrame:
     try:
         with psycopg.connect(DB_URL) as conn:
             with conn.cursor() as cur:
@@ -67,18 +67,24 @@ def fetch_table_rows(sk_id, table):
     return df
 
 def get_raw_tables_dic(sk_id: int) -> dict[str, Any]:
+    """
+    Return a dictionary with keys being table names and values being dataframes
+    """
     tables_dic={}
     for table in TABLES:
         tables_dic[table]=fetch_table_rows(sk_id=sk_id, table=table)
     return tables_dic
 
-def get_custom_features(sk_id, overrides = None):
+def get_custom_features(sk_id: int, overrides: dict = None) -> pd.DataFrame:
+    """
+    Apply get_raw_tables_dic, apply_custom_values then preprocess.
+    """
     tables_dic = get_raw_tables_dic(sk_id)
     tables_dic = apply_custom_values(tables_dic, overrides)
 
     return preprocess(tables_dic)
 
-def get_preprocessed_features(sk_id):
+def get_preprocessed_features(sk_id) -> pd.DataFrame:
     return fetch_table_rows(sk_id, 'preprocessed_data')
 
 
