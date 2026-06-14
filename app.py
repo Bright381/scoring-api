@@ -93,22 +93,17 @@ def custom_predict(sk_id: int, overrides: FeatureOverrides = None):
 
         raw_custom_features_dict = apply_custom_values(raw_tables_dict, override_dict)
 
-        # Preprocess the (potentially modified) raw features
-        customer_features = preprocess(raw_custom_features_dict)
-            
-        # Preprocess the (potentially modified) raw features
-        customer_features = preprocess(raw_custom_features)
-        
-        # Select only features expected by the model
+        # Predict
+        customer_features = customer_features.drop(columns=['SK_ID_CURR', 'TARGET', 'Unnamed: 0'], errors='ignore')
+        # List of features the model expects
         expected_features = LGBM_MODEL.feature_name_
         expected_truncated = [f[:63] for f in expected_features]
         customer_features = customer_features[expected_truncated]
 
-        # Make predictions
+
         probability = LGBM_MODEL.predict_proba(customer_features)[0][1]
         prediction = 1 if probability >= threshold_value else 0
 
-        # Get importances
         ev, importances, sv = get_importances(customer_features, LGBM_MODEL)
 
         return {
