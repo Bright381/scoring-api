@@ -25,6 +25,15 @@ def get_table_names() -> list:
 
 TABLES = get_table_names()
 
+def try_numeric(col):
+    if col.dtype != object:
+        return col  # already numeric, skip
+    if col.isna().all():
+        return col  # all-NaN object column → keep as object (likely categorical)
+    converted = pd.to_numeric(col, errors='coerce')
+    if converted.isna().sum() > col.isna().sum():
+        return col  # conversion introduced new NaNs → it was categorical
+    return converted
 def fetch_table_rows(sk_id: int, table: str) -> pd.DataFrame:
     try:
         with psycopg.connect(DB_URL) as conn:
@@ -61,7 +70,7 @@ def fetch_table_rows(sk_id: int, table: str) -> pd.DataFrame:
                 df=pd.DataFrame(rows, columns=cols)
                 if 'TARGET' in df.columns:
                     df = df.drop(columns=['TARGET'])
-                df = df.apply(pd.to_numeric, errors='coerce')
+                df = df.apply(try_numeric)
     except Exception as e:
         raise ValueError(f"Failed fetching table: {table}, due to error: {e}")
     return df

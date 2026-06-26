@@ -1,4 +1,5 @@
 from fastapi import FastAPI, HTTPException, Body, Query
+import traceback
 from pydantic import BaseModel, Field
 from typing import Dict, Any
 import joblib
@@ -97,7 +98,6 @@ def custom_predict(sk_id: int, overrides: FeatureOverrides = None):
         expected_truncated = [f[:63] for f in expected_features]
         customer_features = customer_features[expected_truncated]
 
-
         probability = LGBM_MODEL.predict_proba(customer_features)[0][1]
         prediction = 1 if probability >= threshold_value else 0
 
@@ -116,7 +116,8 @@ def custom_predict(sk_id: int, overrides: FeatureOverrides = None):
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        print(traceback.format_exc(), flush=True)  # prints full stack trace to server logs
+        raise HTTPException(status_code=500, detail=traceback.format_exc())  # or send it back temporarily
 
 
 @app.get("/explore/{sk_id}")

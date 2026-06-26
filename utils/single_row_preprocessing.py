@@ -3,11 +3,8 @@ import pickle
 import numpy as np
 import json
 from typing import Optional
-
-# pos class
-def change_positive_class(df):
-    df['TARGET']=1-df['TARGET']
-    return df
+# from sklearn import set_config
+# set_config(transform_output="pandas")
 
 # preprocess
 def clean_df(df):
@@ -18,16 +15,25 @@ def clean_df(df):
             df[col] = pd.to_numeric(df[col]).astype(np.float32)
     return df
 
-# One-hot encoding for categorical columns with get_dummies
-def one_hot_encoder(df, name: str):
-    categorical_columns = [col for col in df.columns if df[col].dtype == 'object']
-    with open(f'OHE_{name}.pkl', 'rb') as f:
-            ohe = pickle.load(f)
+def one_hot_encoder(df: pd.DataFrame, name: str):
+    with open(f'api_model_info/params/preproc/OHE_{name}.pkl', 'rb') as f:
+        ohe = pickle.load(f)
+    print(f"{name} is a dataframe: {type(df), df.columns}", flush=True)
+    ohe.set_params(handle_unknown='ignore')
+    if ohe is None or not hasattr(ohe, 'feature_names_in_'):
+        raise ValueError('========\nchelou=======')
+    categorical_columns = list(ohe.feature_names_in_)
+
+    for col in categorical_columns:
+        if col not in df.columns:
+            df[col] = np.nan
+        df[col] = df[col].astype(object)
+        df[col] = df[col].where(pd.notnull(df[col]), other=np.nan)
+
     encoded = ohe.transform(df[categorical_columns])
-    encoded_df = pd.DataFrame(encoded, columns=ohe.get_feature_names_out(categorical_columns), index=df.index)
+    encoded_df = pd.DataFrame(encoded, columns=ohe.get_feature_names_out(), index=df.index)
     df = pd.concat([df.drop(columns=categorical_columns), encoded_df], axis=1)
-    new_columns = list(encoded_df.columns)
-    return df, new_columns
+    return df, list(encoded_df.columns)
 
 # mapping for binary categorical variables
 def apply_binary_maps(df: pd.DataFrame) -> pd.DataFrame:
@@ -58,15 +64,8 @@ def application_train_test(df, sk_id: int, overrides: Optional[int] = None):
         if k in df.columns:
             df.loc[:, k] = v
 
-    ####################
-    # Categorical features with Binary encode (0 or 1; two categories)
-    # for bin_feature in ['CODE_GENDER', 'FLAG_OWN_CAR', 'FLAG_OWN_REALTY']:  ########### cannot be done on single row, must replace with a bin map
-    #     df[bin_feature], uniques = pd.factorize(df[bin_feature])
-    ####################
-
     df=apply_binary_maps(df)
     
-
     # Categorical features with One-Hot encode
     df, _ = one_hot_encoder(df, 'app_train_test')
     
@@ -267,13 +266,12 @@ def preprocess(tables_dic: dict, sk_id) -> pd.DataFrame:
     Take a dictionary of tables {'table': dataframe or dict}.
     Returns a dataframe.
     """
-    for func in [application_train_test, change_positive_class]:
-        df = func(tables_dic['application_test'], sk_id)
-    df = df.merge(bureau_and_balance(tables_dic['bureau'], tables_dic['bureau_balance']), on='SK_ID_CURR', how='left')
-    df = df.merge(previous_applications(tables_dic['previous_application']), on='SK_ID_CURR', how='left')
-    df = df.merge(pos_cash(tables_dic['POS_CASH_balance']), on='SK_ID_CURR', how='left')
-    df = df.merge(installments_payments(tables_dic['installments_payments']), on='SK_ID_CURR', how='left')
-    df = df.merge(credit_card_balance(tables_dic['credit_card_balance']), on='SK_ID_CURR', how='left')
+    df = application_train_test(tables_dic['application_test'], sk_id)
+    df = df.merge(bureau_and_balance(tables_dic['bureau'], tables_dic['bureau_balance'], sk_id), on='SK_ID_CURR', how='left')
+    df = df.merge(previous_applications(tables_dic['previous_application'], sk_id), on='SK_ID_CURR', how='left')
+    df = df.merge(pos_cash(tables_dic['POS_CASH_balance'], sk_id), on='SK_ID_CURR', how='left')
+    df = df.merge(installments_payments(tables_dic['installments_payments'], sk_id), on='SK_ID_CURR', how='left')
+    df = df.merge(credit_card_balance(tables_dic['credit_card_balance'], sk_id), on='SK_ID_CURR', how='left')
     df = clean_df(df)
     return df
 
@@ -286,9 +284,9 @@ def apply_custom_values(tables_dic: dict, overrides: dict) -> dict:
     if overrides is None:
         return tables_dic
 
-    for table in tables_dic.values():
+    for table_name, table in tables_dic.items():
         for col, v in overrides.items():
             if col in table.columns:
                 table[col]=v
-        tables_dic[table]=table
+        tables_dic[table_name]=table
     return tables_dic
