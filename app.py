@@ -45,6 +45,10 @@ def predict(sk_id: int):
 
         # Predict
         customer_features = customer_features.drop(columns=['SK_ID_CURR', 'TARGET', 'Unnamed: 0'], errors='ignore')
+
+        for col in customer_features.columns:
+            customer_features[col] = pd.to_numeric(customer_features[col], errors='coerce')
+
         # List of features the model expects
         expected_features = LGBM_MODEL.feature_name_
         expected_truncated = [f[:63] for f in expected_features]
