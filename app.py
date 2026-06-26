@@ -95,6 +95,9 @@ def custom_predict(sk_id: int, overrides: FeatureOverrides = None):
 
         customer_features = preprocess(raw_custom_features_dict, sk_id)
 
+        for col in customer_features.columns:
+            customer_features[col] = pd.to_numeric(customer_features[col], errors='coerce')
+
         # Predict
         customer_features = customer_features.drop(columns=['SK_ID_CURR', 'TARGET', 'Unnamed: 0'], errors='ignore')
         # List of features the model expects
