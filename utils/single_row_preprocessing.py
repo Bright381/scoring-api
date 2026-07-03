@@ -18,10 +18,11 @@ def clean_df(df):
 def one_hot_encoder(df: pd.DataFrame, name: str):
     with open(f'api_model_info/params/preproc/OHE_{name}.pkl', 'rb') as f:
         ohe = pickle.load(f)
+        print(f'api_model_info/params/preproc/OHE_{name}.pkl')
     print(f"{name} is a dataframe: {type(df), df.columns}", flush=True)
     ohe.set_params(handle_unknown='ignore')
     if ohe is None or not hasattr(ohe, 'feature_names_in_'):
-        raise ValueError('========\nchelou=======')
+        raise ValueError(f'========\nchelou=======\napi_model_info/params/preproc/OHE_{name}.pkl')
     categorical_columns = list(ohe.feature_names_in_)
 
     for col in categorical_columns:
