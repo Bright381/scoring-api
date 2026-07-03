@@ -97,35 +97,35 @@ def get_preprocessed_features(sk_id) -> pd.DataFrame:
     return fetch_table_rows(sk_id, 'preprocessed_data')
 
 
-### shoud treat table without sk_id apart
-def get_column_stats(table: str, column: str, sk_id: int) -> dict:
+def get_column_stats(table: str, column: str, sk_id: int, filter_col: str = None, filter_val: Any = None) -> dict:
     """
     Fetch population histogram data for a column and the customer's own value.
- 
-    Samples up to 10 000 rows from the given table for the histogram, then
-    retrieves the customer's specific value separately. Returns a dict with:
-        - bin_edges, counts  — histogram arrays (30 bins)
-        - customer_value     — the customer's raw value (None if missing)
-        - percentile         — customer position in the population (0-100)
-        - mean, median, std  — summary statistics
-        - n                  — sample size used for the histogram
+    Now supports optional segment filtering.
     """
     with psycopg.connect(DB_URL) as conn:
         with conn.cursor() as cur:
-            # Population sample (cap at 10k to keep it fast)
+            # 1. Customer value (first matching row)
             cur.execute(
-                f'SELECT "{column}" FROM {table} WHERE "{column}" IS NOT NULL LIMIT 10000'
-            )
-            pop_rows = cur.fetchall()
- 
-            # Customer value (first matching row)
-            cur.execute(
-                f'SELECT "{column}" FROM {table} WHERE "SK_ID_CURR" = %s LIMIT 1',
+                f'SELECT "{column}" FROM "{table}" WHERE "SK_ID_CURR" = %s LIMIT 1',
                 (sk_id,)
             )
             cust_row = cur.fetchone()
  
-    population = np.array([r[0] for r in pop_rows], dtype=float)
+            # 2. Population sample (cap at 10k) with optional filtering
+            base_where = f'"{column}" IS NOT NULL'
+            params = []
+            
+            if filter_col and filter_val is not None:
+                base_where += f' AND "{filter_col}" = %s'
+                params.append(str(filter_val))
+                
+            cur.execute(
+                f'SELECT "{column}" FROM "{table}" WHERE {base_where} LIMIT 10000',
+                tuple(params)
+            )
+            pop_rows = cur.fetchall()
+ 
+    population = np.array([r[0] for r in pop_rows if r[0] is not None], dtype=float)
     population = population[~np.isnan(population)]
  
     customer_val = None
@@ -133,18 +133,12 @@ def get_column_stats(table: str, column: str, sk_id: int) -> dict:
         try:
             customer_val = float(cust_row[0])
         except (TypeError, ValueError):
-            customer_val = None
+            pass
  
     if population.size == 0:
         return {
-            "bin_edges": [],
-            "counts": [],
-            "customer_value": customer_val,
-            "percentile": None,
-            "mean": None,
-            "median": None,
-            "std": None,
-            "n": 0,
+            "bin_edges": [], "counts": [], "customer_value": customer_val,
+            "percentile": None, "mean": None, "median": None, "std": None, "n": 0,
         }
  
     counts, bin_edges = np.histogram(population, bins=30)

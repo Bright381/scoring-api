@@ -171,16 +171,18 @@ def distributions(
     table: str,
     column: str = Query(..., description="Column name to compute the distribution for"),
     sk_id: int = Query(..., description="Customer SK_ID_CURR"),
+    filter_col: str = Query(None, description="Optional column name to filter the baseline population by"),
+    filter_val: str = Query(None, description="Optional baseline column matching criterion value"),
 ):
     """
     Returns histogram data for `column` in `table` together with the
-    customer's own value and their percentile rank.
+    customer's own value and their percentile rank, optionally filtered.
     """
     if table not in TABLES:
         raise HTTPException(status_code=400, detail=f"Unknown table '{table}'.")
  
     try:
-        stats = get_column_stats(table, column, sk_id)
+        stats = get_column_stats(table, column, sk_id, filter_col, filter_val)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
  

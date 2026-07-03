@@ -239,34 +239,33 @@ def plot_bivariate_scatter(col_x: str, col_y: str, data: dict) -> plt.Figure:
     return fig
  
  
-def fetch_distributions(sk_id: str, table: str, columns: list[str]) -> dict:
-    """
-    Fetch distribution data for the requested columns, using session-state
-    cache to avoid redundant API calls.
-    """
+def fetch_distributions(sk_id: str, table: str, columns: list[str], filter_col: str = None, filter_val: str = None) -> dict:
+    """Fetch distribution data, factoring in optional filters."""
+    # We include filter parameters in the cache key so switching filters refetches data
     cache = st.session_state.setdefault("dist_cache", {})
     results = {}
     missing = []
  
     for col in columns:
-        key = (table, col)
+        key = (table, col, filter_col, filter_val)
         if key in cache:
             results[col] = cache[key]
         else:
-            missing.append(col)
+            missing.append((col, key))
  
     if missing:
         with st.spinner(f"Fetching distributions for {len(missing)} column(s)…"):
-            for col in missing:
+            for col, key in missing:
                 try:
-                    resp = requests.get(
-                        f"{API_URL}/distributions/{table}",
-                        params={"column": col, "sk_id": sk_id},
-                        timeout=15,
-                    )
+                    params = {"column": col, "sk_id": sk_id}
+                    if filter_col and filter_val is not None:
+                        params["filter_col"] = filter_col
+                        params["filter_val"] = filter_val
+                        
+                    resp = requests.get(f"{API_URL}/distributions/{table}", params=params, timeout=15)
                     if resp.status_code == 200:
                         data = resp.json()
-                        cache[(table, col)] = data
+                        cache[key] = data
                         results[col] = data
                     else:
                         st.warning(f"Could not fetch distribution for **{col}** (status {resp.status_code}).")
