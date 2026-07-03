@@ -19,10 +19,11 @@ def one_hot_encoder(df: pd.DataFrame, name: str):
     with open(f'api_model_info/params/preproc/OHE_{name}.pkl', 'rb') as f:
         ohe = pickle.load(f)
         print(f'api_model_info/params/preproc/OHE_{name}.pkl')
-    if hasattr(ohe, 'feature_names_in_'):
-        categorical_columns = list(ohe.feature_names_in_)
-    else:
-        categorical_columns = []
+    print(f"{name} is a dataframe: {type(df), df.columns}", flush=True)
+    ohe.set_params(handle_unknown='ignore')
+    if ohe is None or not hasattr(ohe, 'feature_names_in_'):
+        raise ValueError(f'Issue with :\napi_model_info/params/preproc/OHE_{name}.pkl or with the df: shape {df.shape}')
+    categorical_columns = list(ohe.feature_names_in_)
 
     for col in categorical_columns:
         if col not in df.columns:
@@ -30,14 +31,10 @@ def one_hot_encoder(df: pd.DataFrame, name: str):
         df[col] = df[col].astype(object)
         df[col] = df[col].where(pd.notnull(df[col]), other=np.nan)
 
-    # Only run the encoder transformations if there are categorical columns present
-    if categorical_columns:
-        encoded = ohe.transform(df[categorical_columns])
-        encoded_df = pd.DataFrame(encoded, columns=ohe.get_feature_names_out(), index=df.index)
-        df = pd.concat([df.drop(columns=categorical_columns), encoded_df], axis=1)
-        return df, list(encoded_df.columns)
-    else:
-        return df, []
+    encoded = ohe.transform(df[categorical_columns])
+    encoded_df = pd.DataFrame(encoded, columns=ohe.get_feature_names_out(), index=df.index)
+    df = pd.concat([df.drop(columns=categorical_columns), encoded_df], axis=1)
+    return df, list(encoded_df.columns)
 
 # mapping for binary categorical variables
 def apply_binary_maps(df: pd.DataFrame) -> pd.DataFrame:

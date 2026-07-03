@@ -191,3 +191,33 @@ def distributions(
         )
  
     return stats
+
+@app.get("/bivariate/{table}")
+def bivariate_distribution(
+    table: str,
+    col_x: str = Query(..., description="Column name for the X axis representation"),
+    col_y: str = Query(..., description="Column name for the Y axis representation"),
+    sk_id: int = Query(..., description="Customer SK_ID_CURR identification"),
+    filter_col: str = Query(None, description="Optional column name to filter the baseline population by"),
+    filter_val: str = Query(None, description="Optional baseline column matching criterion value"),
+):
+    """
+    Returns scatter coordinate groups for col_x and col_y within table, alongside 
+    the specialized client coordinates and active sample counts.
+    """
+    if table not in TABLES:
+        raise HTTPException(status_code=400, detail=f"Unknown table '{table}'.")
+ 
+    try:
+        from utils.get_data import get_bivariate_data
+        stats = get_bivariate_data(table, col_x, col_y, sk_id, filter_col, filter_val)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+ 
+    if stats["n"] == 0:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No matching base distribution records found for features inside table '{table}'.",
+        )
+ 
+    return stats
