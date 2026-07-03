@@ -236,8 +236,8 @@ def installments_payments(ins, sk_id: int, num_rows = None):
         'AMT_PAYMENT': ['min', 'max', 'mean', 'sum'],
         'DAYS_ENTRY_PAYMENT': ['max', 'mean', 'sum']
     }
-    for cat in cat_cols:
-        aggregations[cat] = ['mean']
+    # for cat in cat_cols:
+    #     aggregations[cat] = ['mean']
     ins_agg = ins.groupby('SK_ID_CURR').agg(aggregations)
     ins_agg.columns = pd.Index(['INSTAL_' + e[0] + "_" + e[1].upper() for e in ins_agg.columns.tolist()])
     # Count installments accounts
