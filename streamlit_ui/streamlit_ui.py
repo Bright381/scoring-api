@@ -187,6 +187,56 @@ def plot_distribution(col_name: str, dist: dict) -> plt.Figure:
  
     plt.tight_layout(pad=0.8)
     return fig
+
+
+def plot_bivariate_scatter(col_x: str, col_y: str, data: dict) -> plt.Figure:
+    """
+    Generates a high-performance dark-themed scatter interface.
+    Highlights specific tracking client with an isolated, high-contrast marker.
+    """
+    fig, ax = plt.subplots(figsize=(5.5, 3.8), facecolor="#161b22")
+    ax.set_facecolor("#0d1117")
+ 
+    # Background Sample Population Scatter Map
+    ax.scatter(
+        data["pop_x"], data["pop_y"],
+        color="#2d6cdf", alpha=0.35, s=14, edgecolor="none", zorder=2,
+        label="Population Background"
+    )
+ 
+    # Target Highlighted Customer Coordinates 
+    cx = data.get("customer_x")
+    cy = data.get("customer_y")
+    if cx is not None and cy is not None:
+        ax.scatter(
+            cx, cy,
+            color="#f85149", s=110, marker="X", edgecolor="#ffffff", linewidths=0.9, zorder=5,
+            label=f"Target Customer"
+        )
+ 
+    # Label styling and contextual framing matching UI palette
+    ax.set_title(f"Bivariate Space Analysis", color="#c9d1d9", fontsize=10, pad=6, loc="left")
+    ax.tick_params(axis="both", colors="#8b949e", labelsize=9)
+    for spine in ax.spines.values():
+        spine.set_edgecolor("#30363d")
+        
+    ax.set_xlabel(col_x, color="#8b949e", fontsize=9)
+    ax.set_ylabel(col_y, color="#8b949e", fontsize=9)
+ 
+    ax.legend(
+        fontsize=9, loc="upper right",
+        facecolor="#161b22", edgecolor="#30363d", labelcolor="#c9d1d9"
+    )
+ 
+    n = data.get("n", 0)
+    ax.text(
+        0.97, 0.05, f"n={n:,}",
+        transform=ax.transAxes,
+        color="#8b949e", fontsize=9, ha="right", va="bottom"
+    )
+ 
+    plt.tight_layout(pad=0.8)
+    return fig
  
  
 def fetch_distributions(sk_id: str, table: str, columns: list[str]) -> dict:
@@ -467,3 +517,70 @@ if (
             use_container_width=True,
             hide_index=True,
         )
+
+
+
+    st.divider()
+
+    # ── Bivariate Explorer Interface ──────────────────────────────────────────
+    st.markdown('<h3 class="section-title">Bivariate Coordinate Analysis</h3>', unsafe_allow_html=True)
+ 
+    # Dynamic Column Filtering mapping from the selected workspace table
+    biv_cols = sorted([
+        col for col, val in nested_data[selected_table].items()
+        if val is not None and col not in ("SK_ID_CURR", "SK_ID_BUREAU", "SK_ID_PREV")
+        and isinstance(val, (int, float))
+    ])
+ 
+    if not biv_cols:
+        st.info("Insufficient quantitative data vectors available in this workspace table.")
+    else:
+        bx1, bx2 = st.columns(2)
+        with bx1:
+            col_x = st.selectbox("Horizontal Axis (X)", options=biv_cols, index=0, key="biv_axis_x")
+        with bx2:
+            y_init = 1 if len(biv_cols) > 1 else 0
+            col_y = st.selectbox("Vertical Axis (Y)", options=biv_cols, index=y_init, key="biv_axis_y")
+ 
+        # Add filtering using existing columns and values
+        filter_options = ["No Active Segment Filter"] + sorted(list(nested_data[selected_table].keys()))
+        selected_filter_col = st.selectbox("Filter Reference Frame (Optional)", options=filter_options, key="biv_filter_col")
+        
+        filter_params = {}
+        if selected_filter_col != "No Active Segment Filter":
+            target_filter_val = nested_data[selected_table].get(selected_filter_col)
+            filter_params["filter_col"] = selected_filter_col
+            filter_params["filter_val"] = target_filter_val
+            st.caption(f"Comparing user against population where **{selected_filter_col}** matches customer value: `{target_filter_val}`")
+ 
+        if st.button("Generate Bivariate Space Map"):
+            if col_x == col_y:
+                st.error("Please pick unique structural column targets for distinct dimensions.")
+            else:
+                with st.spinner("Processing coordinate maps from server database..."):
+                    try:
+                        req_payload = {
+                            "col_x": col_x,
+                            "col_y": col_y,
+                            "sk_id": st.session_state["current_sk_id"],
+                            **filter_params
+                        }
+                        resp = requests.get(f"{API_URL}/bivariate/{selected_table}", params=req_payload, timeout=20)
+                        
+                        if resp.status_code == 200:
+                            biv_results = resp.json()
+                            fig_biv = plot_bivariate_scatter(col_x, col_y, biv_results)
+                            st.pyplot(fig_biv, clear_figure=True)
+                            plt.close(fig_biv)
+                            
+                            # Render contextual readout summary
+                            cx_val = biv_results.get("customer_x")
+                            cy_val = biv_results.get("customer_y")
+                            if cx_val is not None and cy_val is not None:
+                                st.caption(f"Target Location Coordinates inside layout space — **{col_x}**: {cx_val:,.4g} · **{col_y}**: {cy_val:,.4g}")
+                            else:
+                                st.warning("Target Client lacks data for at least one chosen dimension. Background context rendered below.")
+                        else:
+                            st.error(f"Failed retrieval interface pipeline: Code {resp.status_code} - {resp.text}")
+                    except requests.exceptions.RequestException as err:
+                        st.error(f"Network transport pipeline disrupted: {err}")

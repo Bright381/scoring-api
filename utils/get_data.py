@@ -164,3 +164,68 @@ def get_column_stats(table: str, column: str, sk_id: int) -> dict:
         "n": int(population.size),
     }
  
+
+ ## for plots
+
+def get_bivariate_data(table: str, col_x: str, col_y: str, sk_id: int, filter_col: str = None, filter_val: Any = None) -> dict:
+    """
+    Fetch background population coordinates for two numeric columns and the customer's own coordinates.
+    Supports optional filtering on a third database column.
+    """
+    with psycopg.connect(DB_URL) as conn:
+        with conn.cursor() as cur:
+            # 1. Fetch Targeted Customer Coordinates
+            if table != "bureau_balance":
+                cust_query = f'SELECT "{col_x}", "{col_y}" FROM "{table}" WHERE "SK_ID_CURR" = %s LIMIT 1'
+            else:
+                cust_query = f"""
+                    SELECT "{col_x}", "{col_y}" FROM "{table}" 
+                    WHERE "SK_ID_BUREAU" IN (
+                        SELECT DISTINCT("SK_ID_BUREAU") FROM bureau WHERE "SK_ID_CURR" = %s
+                    ) LIMIT 1
+                """
+            cur.execute(cust_query, (sk_id,))
+            cust_row = cur.fetchone()
+
+            # 2. Build Population Sample Query with Optional Database Filtering
+            base_where = f'"{col_x}" IS NOT NULL AND "{col_y}" IS NOT NULL'
+            params = []
+            
+            if filter_col and filter_val is not None:
+                base_where += f' AND "{filter_col}" = %s'
+                params.append(str(filter_val))
+            
+            pop_query = f'SELECT "{col_x}", "{col_y}" FROM "{table}" WHERE {base_where} LIMIT 10000'
+            cur.execute(pop_query, tuple(params))
+            pop_rows = cur.fetchall()
+
+    # Parse targeted customer coordinates safely
+    customer_x = None
+    customer_y = None
+    if cust_row is not None:
+        try:
+            customer_x = float(cust_row[0]) if cust_row[0] is not None else None
+            customer_y = float(cust_row[1]) if cust_row[1] is not None else None
+        except (TypeError, ValueError):
+            pass
+
+    # Parse and decouple background population coordinates
+    pop_x = []
+    pop_y = []
+    for r in pop_rows:
+        if r[0] is not None and r[1] is not None:
+            try:
+                pop_x.append(float(r[0]))
+                pop_y.append(float(r[1]))
+            except (TypeError, ValueError):
+                continue
+
+    return {
+        "col_x": col_x,
+        "col_y": col_y,
+        "customer_x": customer_x,
+        "customer_y": customer_y,
+        "pop_x": pop_x,
+        "pop_y": pop_y,
+        "n": len(pop_x)
+    }
