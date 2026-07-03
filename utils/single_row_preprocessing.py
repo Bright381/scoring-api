@@ -19,11 +19,10 @@ def one_hot_encoder(df: pd.DataFrame, name: str):
     with open(f'api_model_info/params/preproc/OHE_{name}.pkl', 'rb') as f:
         ohe = pickle.load(f)
         print(f'api_model_info/params/preproc/OHE_{name}.pkl')
-    print(f"{name} is a dataframe: {type(df), df.columns}", flush=True)
-    ohe.set_params(handle_unknown='ignore')
-    if ohe is None or not hasattr(ohe, 'feature_names_in_'):
-        raise ValueError(f'========\nchelou=======\napi_model_info/params/preproc/OHE_{name}.pkl')
-    categorical_columns = list(ohe.feature_names_in_)
+    if hasattr(ohe, 'feature_names_in_'):
+        categorical_columns = list(ohe.feature_names_in_)
+    else:
+        categorical_columns = []
 
     for col in categorical_columns:
         if col not in df.columns:
@@ -31,10 +30,14 @@ def one_hot_encoder(df: pd.DataFrame, name: str):
         df[col] = df[col].astype(object)
         df[col] = df[col].where(pd.notnull(df[col]), other=np.nan)
 
-    encoded = ohe.transform(df[categorical_columns])
-    encoded_df = pd.DataFrame(encoded, columns=ohe.get_feature_names_out(), index=df.index)
-    df = pd.concat([df.drop(columns=categorical_columns), encoded_df], axis=1)
-    return df, list(encoded_df.columns)
+    # Only run the encoder transformations if there are categorical columns present
+    if categorical_columns:
+        encoded = ohe.transform(df[categorical_columns])
+        encoded_df = pd.DataFrame(encoded, columns=ohe.get_feature_names_out(), index=df.index)
+        df = pd.concat([df.drop(columns=categorical_columns), encoded_df], axis=1)
+        return df, list(encoded_df.columns)
+    else:
+        return df, []
 
 # mapping for binary categorical variables
 def apply_binary_maps(df: pd.DataFrame) -> pd.DataFrame:
@@ -236,8 +239,8 @@ def installments_payments(ins, sk_id: int, num_rows = None):
         'AMT_PAYMENT': ['min', 'max', 'mean', 'sum'],
         'DAYS_ENTRY_PAYMENT': ['max', 'mean', 'sum']
     }
-    # for cat in cat_cols:
-    #     aggregations[cat] = ['mean']
+    for cat in cat_cols:
+        aggregations[cat] = ['mean']
     ins_agg = ins.groupby('SK_ID_CURR').agg(aggregations)
     ins_agg.columns = pd.Index(['INSTAL_' + e[0] + "_" + e[1].upper() for e in ins_agg.columns.tolist()])
     # Count installments accounts
