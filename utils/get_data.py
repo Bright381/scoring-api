@@ -23,6 +23,19 @@ def get_table_names() -> list:
             tables=cur.fetchall()
     return [t[0] for t in tables]
 
+def get_table_columns(table: str) -> list:
+    with psycopg.connect(DB_URL) as conn:
+        with conn.cursor() as cur:
+            cur.execute(f"""
+                SELECT column_name 
+                FROM information_schema.columns
+                WHERE table_name = '{table}'
+                ORDER BY ordinal_position
+                ;"""
+            )
+            cols=cur.fetchall()
+    return [c[0] for c in cols]
+
 TABLES = get_table_names()
 
 def try_numeric(col):
@@ -34,6 +47,7 @@ def try_numeric(col):
     if converted.isna().sum() > col.isna().sum():
         return col  # conversion introduced new NaNs → it was categorical
     return converted
+    
 def fetch_table_rows(sk_id: int, table: str) -> pd.DataFrame:
     try:
         with psycopg.connect(DB_URL) as conn:
@@ -45,7 +59,8 @@ def fetch_table_rows(sk_id: int, table: str) -> pd.DataFrame:
                     FROM 
                         "{table}"
                     WHERE 
-                        "SK_ID_CURR"=%s;"""
+                        "SK_ID_CURR"=%s
+                    ;"""
                 else:
                     query=f"""
                     SELECT
@@ -60,19 +75,27 @@ def fetch_table_rows(sk_id: int, table: str) -> pd.DataFrame:
                                 bureau
                             WHERE
                                 "SK_ID_CURR"=%s
-                        );
+                        )
+                    ;
                     """
                 cur.execute(query, (sk_id,))
                 rows=cur.fetchall()
+                rows=list(rows)
+                cols=get_table_columns(table)
+
                 if not rows:
-                    return pd.DataFrame()
-                cols = [desc[0] for desc in cur.description]
-                df=pd.DataFrame(rows, columns=cols)
+                    return pd.DataFrame(columns=[c for c in cols if c != 'TARGET'])
+                
+                df = pd.DataFrame(rows, columns=cols)
+                
                 if 'TARGET' in df.columns:
                     df = df.drop(columns=['TARGET'])
+                
                 df = df.apply(try_numeric)
+    
     except Exception as e:
         raise ValueError(f"Failed fetching table: {table}, due to error: {e}")
+    
     return df
 
 def get_raw_tables_dic(sk_id: int) -> dict[str, Any]:

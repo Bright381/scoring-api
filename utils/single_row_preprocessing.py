@@ -16,25 +16,34 @@ def clean_df(df):
     return df
 
 def one_hot_encoder(df: pd.DataFrame, name: str):
-    with open(f'api_model_info/params/preproc/OHE_{name}.pkl', 'rb') as f:
-        ohe = pickle.load(f)
-        print(f'api_model_info/params/preproc/OHE_{name}.pkl')
-    print(f"{name} is a dataframe: {type(df), df.columns}", flush=True)
-    ohe.set_params(handle_unknown='ignore')
-    if ohe is None or not hasattr(ohe, 'feature_names_in_'):
-        raise ValueError(f'Issue with :\napi_model_info/params/preproc/OHE_{name}.pkl or with the df: shape {df.shape}')
-    categorical_columns = list(ohe.feature_names_in_)
 
-    for col in categorical_columns:
-        if col not in df.columns:
-            df[col] = np.nan
-        df[col] = df[col].astype(object)
-        df[col] = df[col].where(pd.notnull(df[col]), other=np.nan)
+    categorical_columns = [col for col in df.columns if df[col].dtype == 'object']
+    if len(categorical_columns)>0:
 
-    encoded = ohe.transform(df[categorical_columns])
-    encoded_df = pd.DataFrame(encoded, columns=ohe.get_feature_names_out(), index=df.index)
-    df = pd.concat([df.drop(columns=categorical_columns), encoded_df], axis=1)
-    return df, list(encoded_df.columns)
+        with open(f'api_model_info/params/preproc/OHE_{name}.pkl', 'rb') as f:
+            ohe = pickle.load(f)
+
+        ohe.set_params(handle_unknown='ignore')
+
+        if ohe is None or not hasattr(ohe, 'feature_names_in_'):
+            raise ValueError('No attribute feature_names_in_ !')
+        categorical_columns = list(ohe.feature_names_in_)
+
+        if df.shape[0]==0:
+            df.loc[0]=np.nan
+
+        for col in categorical_columns:
+            df[col] = df[col].astype(object)
+            df[col] = df[col].where(pd.notnull(df[col]), other=np.nan)
+
+        encoded = ohe.transform(df[categorical_columns])
+        encoded_df = pd.DataFrame(encoded, columns=ohe.get_feature_names_out(), index=df.index)
+
+        df = pd.concat([df.drop(columns=categorical_columns), encoded_df], axis=1)
+        return df, list(encoded_df.columns)
+    
+    print(f'skipped ohe for {name}', flush=True)
+    return df, []
 
 # mapping for binary categorical variables
 def apply_binary_maps(df: pd.DataFrame) -> pd.DataFrame:
@@ -84,16 +93,13 @@ def application_train_test(df, sk_id: int, overrides: Optional[int] = None):
 # Preprocess bureau.csv and bureau_balance.csv
 def bureau_and_balance(bureau, bureau_balance, sk_id: int, num_rows = None):
     bb = bureau_balance
-    
-    # bureau = bureau[bureau["SK_ID_CURR"] == sk_id].copy()
-    if bureau.empty:
-        return pd.DataFrame(index=[sk_id])
+
     bureau_ids = bureau["SK_ID_BUREAU"].unique()
     bb = bb[bb["SK_ID_BUREAU"].isin(bureau_ids)].copy()
 
     bb, bb_cat = one_hot_encoder(bb, 'bb')
     bureau, bureau_cat = one_hot_encoder(bureau, 'bureau')
-    
+
     # Bureau balance: Perform aggregations and merge with bureau.csv
     bb_aggregations = {'MONTHS_BALANCE': ['min', 'max', 'size']}
     for col in bb_cat:
@@ -248,7 +254,7 @@ def installments_payments(ins, sk_id: int, num_rows = None):
 
 # Preprocess credit_card_balance.csv
 def credit_card_balance(cc, sk_id: int, num_rows = None):
-    cc, cat_cols = one_hot_encoder(cc, 'cc')
+    cc, _ = one_hot_encoder(cc, 'cc')
     # General aggregations
     cc.drop(['SK_ID_PREV'], axis= 1, inplace = True)
     cc_agg = cc.groupby('SK_ID_CURR').agg(['min', 'max', 'mean', 'sum', 'var'])

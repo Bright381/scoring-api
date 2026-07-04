@@ -86,13 +86,13 @@ def custom_predict(sk_id: int, overrides: FeatureOverrides = None):
     try:
         # Get raw tables for the customer
         raw_tables_dict = get_raw_tables_dic(sk_id)
+
         if raw_tables_dict is None or all(df.empty for df in raw_tables_dict.values()):
             raise HTTPException(status_code=404, detail="Customer ID not found")
         
         override_dict = overrides.model_dump(exclude_none=True)
 
         raw_custom_features_dict = apply_custom_values(raw_tables_dict, override_dict)
-
         customer_features = preprocess(raw_custom_features_dict, sk_id)
 
         for col in customer_features.columns:
@@ -102,8 +102,10 @@ def custom_predict(sk_id: int, overrides: FeatureOverrides = None):
         customer_features = customer_features.drop(columns=['SK_ID_CURR', 'TARGET', 'Unnamed: 0'], errors='ignore')
         # List of features the model expects
         expected_features = LGBM_MODEL.feature_name_
-        expected_truncated = [f[:63] for f in expected_features]
-        customer_features = customer_features[expected_truncated]
+        # expected_truncated = [f[:63] for f in expected_features]
+
+        # print([col for col in customer_features.columns if col not in expected_truncated], flush=True)
+        customer_features = customer_features[expected_features]
 
         probability = LGBM_MODEL.predict_proba(customer_features)[0][1]
         prediction = 1 if probability >= threshold_value else 0
