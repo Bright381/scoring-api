@@ -78,8 +78,6 @@ class TestExplore:
         r = client.get(f"/explore/{VALID_ID}")
         assert len(r.json()) > 0
 
-VALID_ID   = 100006
-
 class TestCustomPredict:
 
     def test_valid_id_returns_200(self):
