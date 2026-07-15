@@ -381,13 +381,322 @@ def render_key_metrics(nested_data: dict) -> None:
     metric_3.metric("Credit Amount", credit_text)
     metric_4.metric("Annual Payment", annuity_text)
 
+def clamp(value: float, minimum: float = 0.0, maximum: float = 1.0) -> float:
+    """Keep a numeric value inside the requested interval."""
+    return max(minimum, min(maximum, value))
+
+
+def interpolate_color(
+    color_1: tuple[int, int, int],
+    color_2: tuple[int, int, int],
+    ratio: float,
+) -> str:
+    """Interpolate between two RGB colors and return a CSS hex color."""
+    ratio = clamp(ratio)
+
+    red = round(color_1[0] + (color_2[0] - color_1[0]) * ratio)
+    green = round(color_1[1] + (color_2[1] - color_1[1]) * ratio)
+    blue = round(color_1[2] + (color_2[2] - color_1[2]) * ratio)
+
+    return f"#{red:02x}{green:02x}{blue:02x}"
+
+
+def score_color(score: float, threshold: float) -> str:
+    """
+    Return a continuous color based on the distance from the threshold.
+
+    threshold - 0.30 or less -> red
+    threshold             -> yellow/orange
+    threshold + 0.30 or more -> green
+    """
+    red = (248, 81, 73)
+    orange = (240, 136, 62)
+    yellow = (210, 170, 45)
+    green = (46, 160, 67)
+
+    distance = score - threshold
+
+    if distance <= -0.30:
+        return "#f85149"
+
+    if distance < 0:
+        # Red -> orange/yellow when approaching the threshold.
+        ratio = (distance + 0.30) / 0.30
+
+        if ratio < 0.65:
+            return interpolate_color(
+                red,
+                orange,
+                ratio / 0.65,
+            )
+
+        return interpolate_color(
+            orange,
+            yellow,
+            (ratio - 0.65) / 0.35,
+        )
+
+    if distance < 0.30:
+        # Yellow/orange -> green after crossing the threshold.
+        return interpolate_color(
+            yellow,
+            green,
+            distance / 0.30,
+        )
+
+    return "#2ea043"
+
+
+def render_score_gauge(
+    score: float,
+    threshold: float,
+    label: str = "Payment Capability Score",
+) -> None:
+    """
+    Render an accessible continuous score gauge.
+
+    The gauge uses HTML/CSS only, so no additional dependency is required.
+    """
+    score = clamp(float(score))
+    threshold = clamp(float(threshold))
+
+    score_percentage = score * 100
+    threshold_percentage = threshold * 100
+    delta = score - threshold
+    color = score_color(score, threshold)
+
+    red_end = clamp(threshold - 0.30) * 100
+    orange_point = clamp(threshold - 0.10) * 100
+    threshold_point = threshold * 100
+    light_green_point = clamp(threshold + 0.10) * 100
+    green_start = clamp(threshold + 0.30) * 100
+
+    if delta <= -0.30:
+        interpretation = "Well below threshold"
+    elif delta < 0:
+        interpretation = "Below threshold"
+    elif delta < 0.30:
+        interpretation = "Above threshold"
+    else:
+        interpretation = "Well above threshold"
+
+    delta_sign = "+" if delta >= 0 else ""
+
+    st.markdown(
+        f"""
+        <div
+            style="
+                background: #161b22;
+                border: 1px solid #30363d;
+                border-radius: 12px;
+                padding: 1.25rem 1.4rem;
+                margin: 0.75rem 0 1.5rem 0;
+            "
+            role="img"
+            aria-label="
+                {label}: {score:.4f}.
+                Threshold: {threshold:.4f}.
+                Difference: {delta_sign}{delta:.4f}.
+                {interpretation}.
+            "
+        >
+            <div style="
+                display: flex;
+                justify-content: space-between;
+                align-items: flex-end;
+                gap: 1rem;
+                margin-bottom: 0.8rem;
+            ">
+                <div>
+                    <div class="metric-label">
+                        {label}
+                    </div>
+
+                    <div style="
+                        color: {color};
+                        font-size: 2rem;
+                        line-height: 1.1;
+                        font-weight: 700;
+                    ">
+                        {score:.4f}
+                    </div>
+                </div>
+
+                <div style="text-align: right;">
+                    <div style="
+                        color: {color};
+                        font-size: 0.95rem;
+                        font-weight: 600;
+                    ">
+                        {interpretation}
+                    </div>
+
+                    <div style="
+                        color: #8b949e;
+                        font-size: 0.8rem;
+                        margin-top: 0.15rem;
+                    ">
+                        Threshold {threshold:.4f}
+                        &nbsp;·&nbsp;
+                        Δ {delta_sign}{delta:.4f}
+                    </div>
+                </div>
+            </div>
+
+            <div style="
+                position: relative;
+                padding-top: 18px;
+                padding-bottom: 24px;
+            ">
+                <!-- Score marker -->
+                <div style="
+                    position: absolute;
+                    left: {score_percentage:.2f}%;
+                    top: 0;
+                    transform: translateX(-50%);
+                    z-index: 3;
+                ">
+                    <div style="
+                        width: 0;
+                        height: 0;
+                        border-left: 7px solid transparent;
+                        border-right: 7px solid transparent;
+                        border-top: 10px solid {color};
+                        margin: auto;
+                    "></div>
+                </div>
+
+                <!-- Gauge track -->
+                <div style="
+                    height: 18px;
+                    width: 100%;
+                    border-radius: 999px;
+                    border: 1px solid #30363d;
+                    background: linear-gradient(
+                        90deg,
+                        #f85149 0%,
+                        #f85149 {red_end:.2f}%,
+                        #f0883e {orange_point:.2f}%,
+                        #d2aa2d {threshold_point:.2f}%,
+                        #77b255 {light_green_point:.2f}%,
+                        #2ea043 {green_start:.2f}%,
+                        #2ea043 100%
+                    );
+                    box-shadow:
+                        inset 0 1px 3px rgba(0, 0, 0, 0.45),
+                        0 0 12px rgba(0, 0, 0, 0.2);
+                    overflow: hidden;
+                ">
+                    <!-- Subtle score fill -->
+                    <div style="
+                        width: {score_percentage:.2f}%;
+                        height: 100%;
+                        background: rgba(255, 255, 255, 0.13);
+                        border-right: 2px solid rgba(255, 255, 255, 0.9);
+                    "></div>
+                </div>
+
+                <!-- Threshold marker -->
+                <div style="
+                    position: absolute;
+                    left: {threshold_percentage:.2f}%;
+                    top: 15px;
+                    width: 3px;
+                    height: 24px;
+                    background: #ffffff;
+                    border-radius: 2px;
+                    transform: translateX(-50%);
+                    box-shadow: 0 0 4px rgba(0, 0, 0, 0.8);
+                    z-index: 2;
+                "></div>
+
+                <!-- Scale labels -->
+                <div style="
+                    position: absolute;
+                    left: 0;
+                    right: 0;
+                    bottom: 0;
+                    display: flex;
+                    justify-content: space-between;
+                    color: #8b949e;
+                    font-size: 0.72rem;
+                ">
+                    <span>0.00</span>
+
+                    <span style="
+                        position: absolute;
+                        left: {threshold_percentage:.2f}%;
+                        transform: translateX(-50%);
+                        color: #c9d1d9;
+                        font-weight: 600;
+                    ">
+                        Threshold
+                    </span>
+
+                    <span>1.00</span>
+                </div>
+            </div>
+
+            <div style="
+                display: flex;
+                align-items: center;
+                gap: 1.2rem;
+                flex-wrap: wrap;
+                margin-top: 0.5rem;
+                color: #8b949e;
+                font-size: 0.75rem;
+            ">
+                <span>
+                    <span style="
+                        display: inline-block;
+                        width: 9px;
+                        height: 9px;
+                        border-radius: 50%;
+                        background: #f85149;
+                        margin-right: 5px;
+                    "></span>
+                    Lower score
+                </span>
+
+                <span>
+                    <span style="
+                        display: inline-block;
+                        width: 9px;
+                        height: 9px;
+                        border-radius: 50%;
+                        background: #d2aa2d;
+                        margin-right: 5px;
+                    "></span>
+                    Near threshold
+                </span>
+
+                <span>
+                    <span style="
+                        display: inline-block;
+                        width: 9px;
+                        height: 9px;
+                        border-radius: 50%;
+                        background: #2ea043;
+                        margin-right: 5px;
+                    "></span>
+                    Higher score
+                </span>
+
+                <span style="margin-left: auto;">
+                    White line = decision threshold
+                </span>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
 def render_prediction(
     prediction: dict,
     title: str = "Prediction Result",
     show_explanations: bool = True,
 ) -> None:
-    """Render one prediction result."""
+    """Render one prediction result with a continuous score gauge."""
     status = prediction.get("status", "Unknown")
     probability = prediction.get("probability")
     threshold = prediction.get("threshold")
@@ -401,12 +710,6 @@ def render_prediction(
         else "status-rejected"
     )
     status_icon = "✓" if approved else "✗"
-
-    probability_text = (
-        f"{probability:.4f}"
-        if is_numeric(probability)
-        else "N/A"
-    )
 
     threshold_text = (
         f"{threshold:.4f}"
@@ -432,22 +735,17 @@ def render_prediction(
             ">
                 <div>
                     <div class="metric-label">Decision</div>
+
                     <div class="{status_class}">
                         {status_icon} {status}
                     </div>
                 </div>
 
-                <div>
+                <div style="text-align: right;">
                     <div class="metric-label">
-                        Payment Capability Score
+                        Decision Threshold
                     </div>
-                    <div class="metric-value">
-                        {probability_text}
-                    </div>
-                </div>
 
-                <div>
-                    <div class="metric-label">Threshold</div>
                     <div class="metric-value">
                         {threshold_text}
                     </div>
@@ -457,6 +755,17 @@ def render_prediction(
         """,
         unsafe_allow_html=True,
     )
+
+    if is_numeric(probability) and is_numeric(threshold):
+        render_score_gauge(
+            score=float(probability),
+            threshold=float(threshold),
+        )
+    else:
+        st.warning(
+            "The score gauge cannot be displayed because the score "
+            "or threshold is missing."
+        )
 
     if not show_explanations:
         return
@@ -474,6 +783,7 @@ def render_prediction(
                     "Factors influencing this customer's prediction."
                 ),
             )
+
         except (ValueError, TypeError):
             st.warning(
                 "The local explanation image could not be decoded."
@@ -489,6 +799,7 @@ def render_prediction(
                     "Most influential features across the model."
                 ),
             )
+
         except (ValueError, TypeError):
             st.warning(
                 "The global explanation image could not be decoded."
