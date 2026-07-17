@@ -739,13 +739,11 @@ def render_prediction(
             "or threshold is missing."
         )
 
-    if not show_explanations:
-        return
-
+def render_feature_importances(prediction: dict) -> None:
+    """Render local and global feature importances side by side."""
     local_image = prediction.get("loc_imp")
     global_image = prediction.get("global_imp")
 
-    # Only create columns if at least one image exists
     if local_image or global_image:
         col1, col2 = st.columns(2)
 
@@ -756,7 +754,7 @@ def render_prediction(
                     st.image(
                         base64.b64decode(local_image),
                         caption="Factors influencing this customer's prediction.",
-                        use_container_width=True,  # Forces image to match column width
+                        use_container_width=True,
                     )
                 except (ValueError, TypeError):
                     st.warning("The local explanation image could not be decoded.")
@@ -768,11 +766,10 @@ def render_prediction(
                     st.image(
                         base64.b64decode(global_image),
                         caption="Most influential features across the model.",
-                        use_container_width=True,  # Forces image to match column width
+                        use_container_width=True,
                     )
                 except (ValueError, TypeError):
                     st.warning("The global explanation image could not be decoded.")
-
 
 # =============================================================================
 # Charts
@@ -1238,6 +1235,301 @@ if customer_loaded:
     st.divider()
 
     # -------------------------------------------------------------------------
+    # Key metrics
+    # -------------------------------------------------------------------------
+    render_section_title("Key Metrics")
+    render_key_metrics(customer_data)
+    
+    st.divider()
+
+    # -------------------------------------------------------------------------
+    # Feature Importances
+    # -------------------------------------------------------------------------
+    render_feature_importances(prediction)
+    
+    st.divider()
+
+    # -------------------------------------------------------------------------
+    # Distribution explorer
+    # -------------------------------------------------------------------------
+
+    render_section_title("Distribution Explorer")
+
+    available_tables = [
+        table
+        for table, table_data in customer_data.items()
+        if isinstance(table_data, dict)
+    ]
+
+    distribution_table = st.selectbox(
+        "Source table",
+        options=available_tables,
+        key="distribution_table",
+    )
+
+    available_numeric_columns = numeric_columns(
+        customer_data[distribution_table]
+    )
+
+    if not available_numeric_columns:
+        st.info(
+            "No numeric columns are available in this table."
+        )
+    else:
+        selected_distribution_columns = st.multiselect(
+            "Columns to visualise",
+            options=available_numeric_columns,
+            key="distribution_columns",
+        )
+
+        if st.button(
+            "Show Distributions",
+            use_container_width=True,
+        ):
+            if selected_distribution_columns:
+                st.session_state[
+                    "displayed_distributions"
+                ] = selected_distribution_columns
+
+                st.session_state[
+                    "displayed_distribution_table"
+                ] = distribution_table
+            else:
+                st.info("Select at least one numeric column.")
+
+        displayed_table = st.session_state[
+            "displayed_distribution_table"
+        ]
+
+        displayed_columns = st.session_state[
+            "displayed_distributions"
+        ]
+
+        if displayed_table == distribution_table and displayed_columns:
+            with st.spinner("Loading distributions…"):
+                distributions = fetch_distributions(
+                    customer_id,
+                    distribution_table,
+                    displayed_columns,
+                )
+
+            for start in range(0, len(displayed_columns), 2):
+                chart_columns = st.columns(2)
+
+                current_columns = displayed_columns[
+                    start:start + 2
+                ]
+
+                for index, column in enumerate(current_columns):
+                    distribution = distributions.get(column)
+
+                    if not distribution:
+                        continue
+
+                    with chart_columns[index]:
+                        figure = plot_distribution(
+                            column,
+                            distribution
+                                 )
+
+                        st.pyplot(
+                            figure,
+                            clear_figure=True,
+                        )
+
+                        plt.close(figure)
+
+                        caption = []
+
+                        customer_value = distribution.get(
+                            "customer_value"
+                        )
+                        percentile = distribution.get("percentile")
+                        mean_value = distribution.get("mean")
+                        standard_deviation = distribution.get("std")
+
+                        if is_numeric(customer_value):
+                            caption.append(
+                                f"Customer: "
+                                f"**{customer_value:,.4g}**"
+                            )
+
+                        if is_numeric(percentile):
+                            caption.append(
+                                f"Percentile: "
+                                f"**P{percentile:.0f}**"
+                            )
+
+                        if is_numeric(mean_value):
+                            caption.append(
+                                f"Mean: {mean_value:,.4g}"
+                            )
+
+                        if is_numeric(standard_deviation):
+                            caption.append(
+                                f"Std: {standard_deviation:,.4g}"
+                            )
+
+                        if caption:
+                            st.caption(" · ".join(caption))
+
+    st.divider()
+
+    # -------------------------------------------------------------------------
+    # Raw column explorer
+    # -------------------------------------------------------------------------
+
+    render_section_title("Column Explorer")
+
+    all_raw_features = flatten_customer_data(customer_data)
+
+    selected_raw_features = st.multiselect(
+        "Columns to inspect",
+        options=sorted(all_raw_features),
+        help="Format: source table · column",
+    )
+
+    if selected_raw_features:
+        rows = []
+
+        for feature_label in selected_raw_features:
+            feature = all_raw_features[feature_label]
+
+            rows.append(
+                {
+                    "Table": feature["table"],
+                    "Feature": feature["column"],
+                    "Value": feature["value"],
+                }
+            )
+
+        st.dataframe(
+            pd.DataFrame(rows),
+            use_container_width=True,
+            hide_index=True,
+        )
+
+    st.divider()
+
+    # -------------------------------------------------------------------------
+    # Bivariate explorer
+    # -------------------------------------------------------------------------
+
+    render_section_title("Bivariate Coordinate Analysis")
+
+    bivariate_table = st.selectbox(
+        "Bivariate source table",
+        options=available_tables,
+        key="bivariate_table",
+    )
+
+    bivariate_columns = numeric_columns(
+        customer_data[bivariate_table]
+    )
+
+    if len(bivariate_columns) < 2:
+        st.info(
+            "At least two numeric columns are required."
+        )
+    else:
+        axis_column_1, axis_column_2 = st.columns(2)
+
+        column_x = axis_column_1.selectbox(
+            "Horizontal Axis (X)",
+            options=bivariate_columns,
+            index=0,
+            key="bivariate_x",
+        )
+
+        column_y = axis_column_2.selectbox(
+            "Vertical Axis (Y)",
+            options=bivariate_columns,
+            index=1,
+            key="bivariate_y",
+        )
+
+        if st.button(
+            "Generate Bivariate Map",
+            use_container_width=True,
+        ):
+            if column_x == column_y:
+                st.warning(
+                    "Select two different numeric columns."
+                )
+            else:
+                with st.spinner(
+                    "Loading bivariate population data…"
+                ):
+                    try:
+                        response = requests.get(
+                            f"{API_URL}/bivariate/{bivariate_table}",
+                            params={
+                                "col_x": column_x,
+                                "col_y": column_y,
+                                "sk_id": customer_id,
+                            },
+                            timeout=20,
+                        )
+
+                        bivariate_data = check_response(
+                            response,
+                            "Bivariate analysis",
+                        )
+
+                        st.session_state["bivariate_result"] = {
+                            "table": bivariate_table,
+                            "column_x": column_x,
+                            "column_y": column_y,
+                            "data": bivariate_data,
+                        }
+
+                    except ValueError as exc:
+                        st.error(str(exc))
+
+                    except RuntimeError as exc:
+                        st.error(str(exc))
+
+                    except requests.exceptions.RequestException as exc:
+                        st.error(
+                            f"Bivariate request failed: {exc}"
+                        )
+
+        bivariate_result = st.session_state[
+            "bivariate_result"
+        ]
+
+        if (
+            bivariate_result
+            and bivariate_result["table"] == bivariate_table
+        ):
+            figure = plot_bivariate(
+                bivariate_result["column_x"],
+                bivariate_result["column_y"],
+                bivariate_result["data"],
+            )
+
+            st.pyplot(
+                figure,
+                clear_figure=True,
+            )
+
+            plt.close(figure)
+
+            bivariate_data = bivariate_result["data"]
+
+            customer_x = bivariate_data.get("customer_x")
+            customer_y = bivariate_data.get("customer_y")
+
+            if is_numeric(customer_x) and is_numeric(customer_y):
+                st.caption(
+                    f"Customer coordinates — "
+                    f"**{bivariate_result['column_x']}**: "
+                    f"{customer_x:,.4g} · "
+                    f"**{bivariate_result['column_y']}**: "
+                    f"{customer_y:,.4g}"
+                )
+
+    # -------------------------------------------------------------------------
     # What-if simulation
     # -------------------------------------------------------------------------
 
@@ -1453,291 +1745,3 @@ if customer_loaded:
         st.info("No editable raw-data features are available.")
 
     st.divider()
-
-    # -------------------------------------------------------------------------
-    # Key metrics
-    # -------------------------------------------------------------------------
-
-    render_section_title("Key Metrics")
-    render_key_metrics(customer_data)
-
-    st.divider()
-
-    # -------------------------------------------------------------------------
-    # Distribution explorer
-    # -------------------------------------------------------------------------
-
-    render_section_title("Distribution Explorer")
-
-    available_tables = [
-        table
-        for table, table_data in customer_data.items()
-        if isinstance(table_data, dict)
-    ]
-
-    distribution_table = st.selectbox(
-        "Source table",
-        options=available_tables,
-        key="distribution_table",
-    )
-
-    available_numeric_columns = numeric_columns(
-        customer_data[distribution_table]
-    )
-
-    if not available_numeric_columns:
-        st.info(
-            "No numeric columns are available in this table."
-        )
-    else:
-        selected_distribution_columns = st.multiselect(
-            "Columns to visualise",
-            options=available_numeric_columns,
-            key="distribution_columns",
-        )
-
-        if st.button(
-            "Show Distributions",
-            use_container_width=True,
-        ):
-            if selected_distribution_columns:
-                st.session_state[
-                    "displayed_distributions"
-                ] = selected_distribution_columns
-
-                st.session_state[
-                    "displayed_distribution_table"
-                ] = distribution_table
-            else:
-                st.info("Select at least one numeric column.")
-
-        displayed_table = st.session_state[
-            "displayed_distribution_table"
-        ]
-
-        displayed_columns = st.session_state[
-            "displayed_distributions"
-        ]
-
-        if displayed_table == distribution_table and displayed_columns:
-            with st.spinner("Loading distributions…"):
-                distributions = fetch_distributions(
-                    customer_id,
-                    distribution_table,
-                    displayed_columns,
-                )
-
-            for start in range(0, len(displayed_columns), 2):
-                chart_columns = st.columns(2)
-
-                current_columns = displayed_columns[
-                    start:start + 2
-                ]
-
-                for index, column in enumerate(current_columns):
-                    distribution = distributions.get(column)
-
-                    if not distribution:
-                        continue
-
-                    with chart_columns[index]:
-                        figure = plot_distribution(
-                            column,
-                                 )
-
-                        st.pyplot(
-                            figure,
-                            clear_figure=True,
-                        )
-
-                        plt.close(figure)
-
-                        caption = []
-
-                        customer_value = distribution.get(
-                            "customer_value"
-                        )
-                        percentile = distribution.get("percentile")
-                        mean_value = distribution.get("mean")
-                        standard_deviation = distribution.get("std")
-
-                        if is_numeric(customer_value):
-                            caption.append(
-                                f"Customer: "
-                                f"**{customer_value:,.4g}**"
-                            )
-
-                        if is_numeric(percentile):
-                            caption.append(
-                                f"Percentile: "
-                                f"**P{percentile:.0f}**"
-                            )
-
-                        if is_numeric(mean_value):
-                            caption.append(
-                                f"Mean: {mean_value:,.4g}"
-                            )
-
-                        if is_numeric(standard_deviation):
-                            caption.append(
-                                f"Std: {standard_deviation:,.4g}"
-                            )
-
-                        if caption:
-                            st.caption(" · ".join(caption))
-
-    st.divider()
-
-    # -------------------------------------------------------------------------
-    # Raw column explorer
-    # -------------------------------------------------------------------------
-
-    render_section_title("Column Explorer")
-
-    all_raw_features = flatten_customer_data(customer_data)
-
-    selected_raw_features = st.multiselect(
-        "Columns to inspect",
-        options=sorted(all_raw_features),
-        help="Format: source table · column",
-    )
-
-    if selected_raw_features:
-        rows = []
-
-        for feature_label in selected_raw_features:
-            feature = all_raw_features[feature_label]
-
-            rows.append(
-                {
-                    "Table": feature["table"],
-                    "Feature": feature["column"],
-                    "Value": feature["value"],
-                }
-            )
-
-        st.dataframe(
-            pd.DataFrame(rows),
-            use_container_width=True,
-            hide_index=True,
-        )
-
-    st.divider()
-
-    # -------------------------------------------------------------------------
-    # Bivariate explorer
-    # -------------------------------------------------------------------------
-
-    render_section_title("Bivariate Coordinate Analysis")
-
-    bivariate_table = st.selectbox(
-        "Bivariate source table",
-        options=available_tables,
-        key="bivariate_table",
-    )
-
-    bivariate_columns = numeric_columns(
-        customer_data[bivariate_table]
-    )
-
-    if len(bivariate_columns) < 2:
-        st.info(
-            "At least two numeric columns are required."
-        )
-    else:
-        axis_column_1, axis_column_2 = st.columns(2)
-
-        column_x = axis_column_1.selectbox(
-            "Horizontal Axis (X)",
-            options=bivariate_columns,
-            index=0,
-            key="bivariate_x",
-        )
-
-        column_y = axis_column_2.selectbox(
-            "Vertical Axis (Y)",
-            options=bivariate_columns,
-            index=1,
-            key="bivariate_y",
-        )
-
-        if st.button(
-            "Generate Bivariate Map",
-            use_container_width=True,
-        ):
-            if column_x == column_y:
-                st.warning(
-                    "Select two different numeric columns."
-                )
-            else:
-                with st.spinner(
-                    "Loading bivariate population data…"
-                ):
-                    try:
-                        response = requests.get(
-                            f"{API_URL}/bivariate/{bivariate_table}",
-                            params={
-                                "col_x": column_x,
-                                "col_y": column_y,
-                                "sk_id": customer_id,
-                            },
-                            timeout=20,
-                        )
-
-                        bivariate_data = check_response(
-                            response,
-                            "Bivariate analysis",
-                        )
-
-                        st.session_state["bivariate_result"] = {
-                            "table": bivariate_table,
-                            "column_x": column_x,
-                            "column_y": column_y,
-                            "data": bivariate_data,
-                        }
-
-                    except ValueError as exc:
-                        st.error(str(exc))
-
-                    except RuntimeError as exc:
-                        st.error(str(exc))
-
-                    except requests.exceptions.RequestException as exc:
-                        st.error(
-                            f"Bivariate request failed: {exc}"
-                        )
-
-        bivariate_result = st.session_state[
-            "bivariate_result"
-        ]
-
-        if (
-            bivariate_result
-            and bivariate_result["table"] == bivariate_table
-        ):
-            figure = plot_bivariate(
-                bivariate_result["column_x"],
-                bivariate_result["column_y"],
-                bivariate_result["data"],
-            )
-
-            st.pyplot(
-                figure,
-                clear_figure=True,
-            )
-
-            plt.close(figure)
-
-            bivariate_data = bivariate_result["data"]
-
-            customer_x = bivariate_data.get("customer_x")
-            customer_y = bivariate_data.get("customer_y")
-
-            if is_numeric(customer_x) and is_numeric(customer_y):
-                st.caption(
-                    f"Customer coordinates — "
-                    f"**{bivariate_result['column_x']}**: "
-                    f"{customer_x:,.4g} · "
-                    f"**{bivariate_result['column_y']}**: "
-                    f"{customer_y:,.4g}"
-                )
