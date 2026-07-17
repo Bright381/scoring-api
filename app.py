@@ -37,30 +37,29 @@ def running():
 @app.get("/predict/{sk_id}")
 def predict(sk_id: int):
     try:
-        # Get preprocessed features
-        customer_features = get_preprocessed_features(sk_id)
+        # Get raw tables for the customer
+        raw_tables_dict = get_raw_tables_dic(sk_id)
 
-        if customer_features is None or customer_features.shape[0]==0:
+        if raw_tables_dict is None or all(df.empty for df in raw_tables_dict.values()):
             raise HTTPException(status_code=404, detail="Customer ID not found")
-
-        # Predict
-        customer_features = customer_features.drop(columns=['SK_ID_CURR', 'TARGET', 'Unnamed: 0'], errors='ignore')
+            
+        customer_features = preprocess(raw_tables_dict, sk_id)
 
         for col in customer_features.columns:
             customer_features[col] = pd.to_numeric(customer_features[col], errors='coerce')
 
         # List of features the model expects
+        customer_features = customer_features.drop(columns=['SK_ID_CURR', 'TARGET', 'Unnamed: 0'], errors='ignore')
         expected_features = LGBM_MODEL.feature_name_
         expected_truncated = [f[:63] for f in expected_features]
-        customer_features = customer_features[expected_truncated]
 
+        customer_features = customer_features[expected_features]
 
         probability = LGBM_MODEL.predict_proba(customer_features)[0][1]
-
         prediction = 1 if probability >= threshold_value else 0
 
         ev, importances, sv = get_importances(customer_features, LGBM_MODEL)
-        
+
         return {
             "sk_id": sk_id,
             "prediction": prediction,
@@ -70,16 +69,14 @@ def predict(sk_id: int):
             "loc_imp": plot(customer_features, ev, importances, sv),
             "global_imp": global_imp
         }
-
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=traceback.format_exc())
     
 
 class FeatureOverrides(BaseModel):
     overrides: Dict[str, Any] = Field(default_factory=dict)
-
 
 @app.post("/custom_predict/{sk_id}")
 def custom_predict(sk_id: int, overrides: FeatureOverrides = None):
@@ -98,13 +95,11 @@ def custom_predict(sk_id: int, overrides: FeatureOverrides = None):
         for col in customer_features.columns:
             customer_features[col] = pd.to_numeric(customer_features[col], errors='coerce')
 
-        # Predict
-        customer_features = customer_features.drop(columns=['SK_ID_CURR', 'TARGET', 'Unnamed: 0'], errors='ignore')
         # List of features the model expects
+        customer_features = customer_features.drop(columns=['SK_ID_CURR', 'TARGET', 'Unnamed: 0'], errors='ignore')
         expected_features = LGBM_MODEL.feature_name_
         expected_truncated = [f[:63] for f in expected_features]
 
-        print([col for col in customer_features.columns if col not in expected_truncated], flush=True)
         customer_features = customer_features[expected_features]
 
         probability = LGBM_MODEL.predict_proba(customer_features)[0][1]
@@ -125,8 +120,7 @@ def custom_predict(sk_id: int, overrides: FeatureOverrides = None):
     except HTTPException:
         raise
     except Exception as e:
-        print(traceback.format_exc(), flush=True)  # prints full stack trace to server logs
-        raise HTTPException(status_code=500, detail=traceback.format_exc())  # or send it back temporarily
+        raise HTTPException(status_code=500, detail=traceback.format_exc())
 
 
 @app.get("/explore/{sk_id}")
@@ -163,7 +157,6 @@ def explore(sk_id: int):
     except HTTPException:
         raise
     except Exception as e:
-        # Print the error so it shows up in pytest output if it fails!
         print(f"Explore Endpoint Crash: {repr(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
