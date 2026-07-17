@@ -745,37 +745,33 @@ def render_prediction(
     local_image = prediction.get("loc_imp")
     global_image = prediction.get("global_imp")
 
-    if local_image:
-        try:
-            render_section_title("Local Feature Importance")
+    # Only create columns if at least one image exists
+    if local_image or global_image:
+        col1, col2 = st.columns(2)
 
-            st.image(
-                base64.b64decode(local_image),
-                caption=(
-                    "Factors influencing this customer's prediction."
-                ),
-            )
+        with col1:
+            if local_image:
+                try:
+                    render_section_title("Local Feature Importance")
+                    st.image(
+                        base64.b64decode(local_image),
+                        caption="Factors influencing this customer's prediction.",
+                        use_container_width=True,  # Forces image to match column width
+                    )
+                except (ValueError, TypeError):
+                    st.warning("The local explanation image could not be decoded.")
 
-        except (ValueError, TypeError):
-            st.warning(
-                "The local explanation image could not be decoded."
-            )
-
-    if global_image:
-        try:
-            render_section_title("Global Feature Importance")
-
-            st.image(
-                base64.b64decode(global_image),
-                caption=(
-                    "Most influential features across the model."
-                ),
-            )
-
-        except (ValueError, TypeError):
-            st.warning(
-                "The global explanation image could not be decoded."
-            )
+        with col2:
+            if global_image:
+                try:
+                    render_section_title("Global Feature Importance")
+                    st.image(
+                        base64.b64decode(global_image),
+                        caption="Most influential features across the model.",
+                        use_container_width=True,  # Forces image to match column width
+                    )
+                except (ValueError, TypeError):
+                    st.warning("The global explanation image could not be decoded.")
 
 
 # =============================================================================
