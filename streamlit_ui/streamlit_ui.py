@@ -47,7 +47,6 @@ st.markdown(
                 background-color: #0d1117;
                 color: #c9d1d9;
             }
-
             .title {
                 font-family: "DM Mono", monospace;
                 font-size: 2rem;
@@ -56,13 +55,11 @@ st.markdown(
                 letter-spacing: -0.02em;
                 margin-bottom: 0.2rem;
             }
-
             .subtitle {
                 font-size: 0.9rem;
                 color: #8b949e;
                 margin-bottom: 2rem;
             }
-
             .result-card {
                 background: #161b22;
                 border: 1px solid #30363d;
@@ -71,15 +68,12 @@ st.markdown(
                 margin-bottom: 1rem;
                 box-shadow: 0 4px 15px rgba(0, 0, 0, 0.45);
             }
-
             .approved {
                 border-left: 4px solid #2ea043;
             }
-
             .rejected {
                 border-left: 4px solid #f85149;
             }
-
             .metric-label {
                 font-family: "DM Mono", monospace;
                 font-size: 0.75rem;
@@ -87,25 +81,21 @@ st.markdown(
                 text-transform: uppercase;
                 letter-spacing: 0.08em;
             }
-
             .metric-value {
                 font-size: 2rem;
                 font-weight: 600;
                 color: #ffffff;
             }
-
             .status-approved {
                 color: #2ea043;
                 font-size: 1.4rem;
                 font-weight: 600;
             }
-
             .status-rejected {
                 color: #f85149;
                 font-size: 1.4rem;
                 font-weight: 600;
             }
-
             .section-title {
                 font-family: "DM Mono", monospace;
                 font-size: 0.8rem;
@@ -118,7 +108,6 @@ st.markdown(
                 padding-bottom: 0.5rem;
                 border-bottom: 1px solid #30363d;
             }
-
             .simulation-box {
                 background: #161b22;
                 border: 1px solid #30363d;
@@ -126,7 +115,6 @@ st.markdown(
                 padding: 1.25rem;
                 margin-bottom: 1rem;
             }
-
             div[data-testid="stSidebar"] {
                 background-color: #0d1117 !important;
             }
@@ -525,7 +513,6 @@ def render_score_gauge(
                             {score:.4f}
                         </div>
                     </div>
-
                     <div style="text-align: right;">
                         <div style="
                             color: {color};
@@ -569,7 +556,6 @@ def render_score_gauge(
                             margin: auto;
                         "></div>
                     </div>
-
                     <!-- Gauge track -->
                     <div style="
                         height: 18px;
@@ -599,7 +585,6 @@ def render_score_gauge(
                             border-right: 2px solid rgba(255, 255, 255, 0.9);
                         "></div>
                     </div>
-
                     <!-- Threshold marker -->
                     <div style="
                         position: absolute;
@@ -613,7 +598,6 @@ def render_score_gauge(
                         box-shadow: 0 0 4px rgba(0, 0, 0, 0.8);
                         z-index: 2;
                     "></div>
-
                     <!-- Scale labels -->
                     <div style="
                         position: absolute;
@@ -626,7 +610,6 @@ def render_score_gauge(
                         font-size: 0.72rem;
                     ">
                         <span>0.00</span>
-
                         <span style="
                             position: absolute;
                             left: {threshold_percentage:.2f}%;
@@ -636,11 +619,9 @@ def render_score_gauge(
                         ">
                             Threshold
                         </span>
-
                         <span>1.00</span>
                     </div>
                 </div>
-
                 <div style="
                     display: flex;
                     align-items: center;
@@ -661,7 +642,6 @@ def render_score_gauge(
                         "></span>
                         Lower score
                     </span>
-
                     <span>
                         <span style="
                             display: inline-block;
@@ -673,7 +653,6 @@ def render_score_gauge(
                         "></span>
                         Near threshold
                     </span>
-
                     <span>
                         <span style="
                             display: inline-block;
@@ -685,7 +664,6 @@ def render_score_gauge(
                         "></span>
                         Higher score
                     </span>
-
                     <span style="margin-left: auto;">
                         White line = decision threshold
                     </span>
@@ -746,7 +724,6 @@ def render_prediction(
                             {status_icon} {status}
                         </div>
                     </div>
-
                     <div style="text-align: right;">
                         <div class="metric-label">
                             Decision Threshold
