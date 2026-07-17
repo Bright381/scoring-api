@@ -13,12 +13,12 @@ import requests
 import streamlit as st
 import textwrap
 import re
-from dotenv import load_dotenv
+# from dotenv import load_dotenv
 
 # =============================================================================
 # Configuration
 # =============================================================================
-load_dotenv()
+# load_dotenv()
 API_URL = os.environ["API_URL"].rstrip("/")
 
 ID_COLUMNS = {
