@@ -9,7 +9,7 @@ from typing import Optional
 # preprocess
 def clean_df(df):
     df.columns = ["".join(c if c.isalnum() else "_" for c in str(x)) for x in df.columns]
-    df.replace([np.inf, -np.inf], np.nan, inplace=True)
+    df=df.replace([np.inf, -np.inf], np.nan)
     for col in df.columns:
         if col not in ['TARGET', 'SK_ID_CURR', 'index']:
             df[col] = pd.to_numeric(df[col]).astype(np.float32)
@@ -81,7 +81,7 @@ def application_train_test(df, sk_id: int, overrides: Optional[int] = None):
     df, _ = one_hot_encoder(df, 'app_train_test', sk_id)
     
     # NaN values for DAYS_EMPLOYED: 365.243 -> nan
-    df['DAYS_EMPLOYED'].replace(365243, np.nan, inplace= True)
+    df['DAYS_EMPLOYED']=df['DAYS_EMPLOYED'].replace(365243, np.nan)
     # Some simple new features (percentages)
     df['DAYS_EMPLOYED_PERC'] = df['DAYS_EMPLOYED'] / df['DAYS_BIRTH']
     df['INCOME_CREDIT_PERC'] = df['AMT_INCOME_TOTAL'] / df['AMT_CREDIT']
@@ -108,7 +108,7 @@ def bureau_and_balance(bureau, bureau_balance, sk_id: int, num_rows = None):
     bb_agg = bb.groupby('SK_ID_BUREAU').agg(bb_aggregations)
     bb_agg.columns = pd.Index([e[0] + "_" + e[1].upper() for e in bb_agg.columns.tolist()])
     bureau = bureau.join(bb_agg, how='left', on='SK_ID_BUREAU')
-    bureau.drop(['SK_ID_BUREAU'], axis=1, inplace= True)
+    bureau=bureau.drop(['SK_ID_BUREAU'], axis=1)
     del bb, bb_agg
 
     # Bureau and bureau_balance numeric features
@@ -159,11 +159,11 @@ def previous_applications(prev, sk_id: int, num_rows = None):
 
     prev, cat_cols = one_hot_encoder(prev, 'prev', sk_id)
     # Days 365.243 values -> nan
-    prev['DAYS_FIRST_DRAWING'].replace(365243, np.nan, inplace= True)
-    prev['DAYS_FIRST_DUE'].replace(365243, np.nan, inplace= True)
-    prev['DAYS_LAST_DUE_1ST_VERSION'].replace(365243, np.nan, inplace= True)
-    prev['DAYS_LAST_DUE'].replace(365243, np.nan, inplace= True)
-    prev['DAYS_TERMINATION'].replace(365243, np.nan, inplace= True)
+    prev['DAYS_FIRST_DRAWING']=prev['DAYS_FIRST_DRAWING'].replace(365243, np.nan)
+    prev['DAYS_FIRST_DUE']=prev['DAYS_FIRST_DUE'].replace(365243, np.nan)
+    prev['DAYS_LAST_DUE_1ST_VERSION']=prev['DAYS_LAST_DUE_1ST_VERSION'].replace(365243, np.nan)
+    prev['DAYS_LAST_DUE']=prev['DAYS_LAST_DUE'].replace(365243, np.nan)
+    prev['DAYS_TERMINATION']=prev['DAYS_TERMINATION'].replace(365243, np.nan)
     # Add feature: value ask / value received percentage
     prev['APP_CREDIT_PERC'] = prev['AMT_APPLICATION'] / prev['AMT_CREDIT']
     # Previous applications numeric features
@@ -257,7 +257,7 @@ def installments_payments(ins, sk_id: int, num_rows = None):
 def credit_card_balance(cc, sk_id: int, num_rows = None):
     cc, _ = one_hot_encoder(cc, 'cc', sk_id)
     # General aggregations
-    cc.drop(['SK_ID_PREV'], axis= 1, inplace = True)
+    cc=cc.drop(['SK_ID_PREV'], axis= 1)
     cc_agg = cc.groupby('SK_ID_CURR').agg(['min', 'max', 'mean', 'sum', 'var'])
     cc_agg.columns = pd.Index(['CC_' + e[0] + "_" + e[1].upper() for e in cc_agg.columns.tolist()])
 

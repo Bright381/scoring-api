@@ -158,8 +158,8 @@ def check_response(response: requests.Response, action: str) -> dict:
         ) from exc
 
 
-def fetch_prediction(sk_id: str) -> dict:
-    """Fetch the original prediction."""
+def get_prediction(sk_id: str) -> dict:
+    """Get the original prediction."""
     response = requests.get(
         f"{API_URL}/predict/{sk_id}",
         timeout=30,
@@ -178,14 +178,14 @@ def fetch_customer_data(sk_id: str) -> dict:
     return check_response(response, "Customer data loading")
 
 
-def fetch_simulated_prediction(
+def get_simulated_prediction(
     sk_id: str,
     table: str,
     column: str,
     value: Any,
 ) -> dict:
     """
-    Run a simulated prediction with one modified raw-data feature.
+    Run a simulated prediction with modified raw-data features.
 
     Expected request body:
 
@@ -206,7 +206,7 @@ def fetch_simulated_prediction(
     }
 
     response = requests.post(
-        f"{API_URL}/predict/{sk_id}",
+        f"{API_URL}/custom_predict/{sk_id}",
         json=payload,
         timeout=30,
     )
@@ -1223,7 +1223,7 @@ if predict_button:
             "Running prediction and loading customer data…"
         ):
             try:
-                prediction = fetch_prediction(customer_id)
+                prediction = get_prediction(customer_id)
                 customer_data = fetch_customer_data(customer_id)
 
                 st.session_state["current_sk_id"] = customer_id
@@ -1368,7 +1368,7 @@ if customer_loaded:
             with st.spinner("Running simulated prediction…"):
                 try:
                     simulated_prediction = (
-                        fetch_simulated_prediction(
+                        get_simulated_prediction(
                             customer_id,
                             selected_table,
                             selected_column,
