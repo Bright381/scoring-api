@@ -1,585 +1,1783 @@
 import os
-import streamlit as st
-import requests
-import pandas as pd
-import numpy as np
-import matplotlib
-import matplotlib.pyplot as plt
 import base64
- 
-matplotlib.use("Agg")  # headless backend — must come before any plt usage
- 
-API_URL = os.environ["API_URL"]
- 
-st.set_page_config(page_title="Credit Scoring", page_icon="🏦", layout="wide")
- 
-# ---------------------------------------------------------------------------
-# CSS
-# ---------------------------------------------------------------------------
-st.markdown("""
+from typing import Any
+
+import matplotlib
+
+matplotlib.use("Agg")
+
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+import requests
+import streamlit as st
+
+
+# =============================================================================
+# Configuration
+# =============================================================================
+
+API_URL = os.environ["API_URL"].rstrip("/")
+
+ID_COLUMNS = {
+    "SK_ID_CURR",
+    "SK_ID_BUREAU",
+    "SK_ID_PREV",
+}
+
+st.set_page_config(
+    page_title="Credit Scoring",
+    page_icon="🏦",
+    layout="wide",
+)
+
+
+# =============================================================================
+# Style
+# =============================================================================
+
+st.markdown(
+    """
     <style>
-        html, body, [class*="css"] { 
-            font-family: 'DM Sans', sans-serif; 
+        html,
+        body,
+        [class*="css"] {
+            font-family: "DM Sans", sans-serif;
             background-color: #0d1117;
             color: #c9d1d9;
         }
-        .title { 
-            font-family: 'DM Mono', monospace; 
-            font-size: 2rem; 
-            font-weight: 500; 
+
+        .title {
+            font-family: "DM Mono", monospace;
+            font-size: 2rem;
+            font-weight: 500;
             color: #ffffff;
-            letter-spacing: -0.02em; 
-            margin-bottom: 0.2rem; 
+            letter-spacing: -0.02em;
+            margin-bottom: 0.2rem;
         }
-        .subtitle { 
-            font-size: 0.9rem; 
+
+        .subtitle {
+            font-size: 0.9rem;
             color: #8b949e;
-            margin-bottom: 2rem; 
-            font-weight: 300; 
+            margin-bottom: 2rem;
         }
-        .result-card { 
+
+        .result-card {
             background: #161b22;
-            border-radius: 12px; 
-            padding: 1.5rem; 
             border: 1px solid #30363d;
-            margin-bottom: 1rem; 
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 1rem;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.45);
         }
-        .approved { border-left: 4px solid #2ea043; }
-        .rejected { border-left: 4px solid #f85149; }
-        .metric-label { 
-            font-family: 'DM Mono', monospace; 
-            font-size: 0.75rem; 
+
+        .approved {
+            border-left: 4px solid #2ea043;
+        }
+
+        .rejected {
+            border-left: 4px solid #f85149;
+        }
+
+        .metric-label {
+            font-family: "DM Mono", monospace;
+            font-size: 0.75rem;
             color: #8b949e;
-            text-transform: uppercase; 
-            letter-spacing: 0.08em; 
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
         }
-        .metric-value { 
-            font-size: 2rem; 
-            font-weight: 600; 
+
+        .metric-value {
+            font-size: 2rem;
+            font-weight: 600;
             color: #ffffff;
         }
-        .status-approved { color: #2ea043; font-size: 1.4rem; font-weight: 600; }
-        .status-rejected { color: #f85149; font-size: 1.4rem; font-weight: 600; }
-        .section-title { 
-            font-family: 'DM Mono', monospace; 
-            font-size: 0.8rem; 
-            font-weight: 400;       /* neutralise browser h3 bold default */
+
+        .status-approved {
+            color: #2ea043;
+            font-size: 1.4rem;
+            font-weight: 600;
+        }
+
+        .status-rejected {
+            color: #f85149;
+            font-size: 1.4rem;
+            font-weight: 600;
+        }
+
+        .section-title {
+            font-family: "DM Mono", monospace;
+            font-size: 0.8rem;
+            font-weight: 400;
             color: #8b949e;
-            text-transform: uppercase; 
-            letter-spacing: 0.1em; 
-            margin-top: 0;          /* neutralise browser h3 margin default */
-            margin-bottom: 1rem; 
-            padding-bottom: 0.5rem; 
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            margin-top: 0;
+            margin-bottom: 1rem;
+            padding-bottom: 0.5rem;
             border-bottom: 1px solid #30363d;
         }
-        div[data-testid="stSidebar"] { background-color: #0d1117 !important; }
+
+        .simulation-box {
+            background: #161b22;
+            border: 1px solid #30363d;
+            border-radius: 12px;
+            padding: 1.25rem;
+            margin-bottom: 1rem;
+        }
+
+        div[data-testid="stSidebar"] {
+            background-color: #0d1117 !important;
+        }
     </style>
-""", unsafe_allow_html=True)
- 
- 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
- 
-def find_val(nested_data: dict, col: str):
-    """Search for a column name across all tables in the nested explore dict."""
-    for table_cols in nested_data.values():
-        if col in table_cols:
-            return table_cols[col]
-    return None
- 
- 
-def render_key_metrics(nested_data: dict):
-    """Display the four headline metrics from any table that holds them."""
-    m1, m2, m3, m4 = st.columns(4)
- 
-    days_birth = find_val(nested_data, 'DAYS_BIRTH')
-    age = int(-days_birth / 365) if days_birth is not None else "N/A"
- 
-    income_raw = find_val(nested_data, 'AMT_INCOME_TOTAL')
-    income = f"${income_raw:,.0f}" if income_raw is not None else "N/A"
- 
-    credit_raw = find_val(nested_data, 'AMT_CREDIT')
-    credit = f"${credit_raw:,.0f}" if credit_raw is not None else "N/A"
- 
-    annuity_raw = find_val(nested_data, 'AMT_ANNUITY')
-    annuity = f"${annuity_raw:,.0f}" if annuity_raw is not None else "N/A"
- 
-    m1.metric("Age", str(age))
-    m2.metric("Income", income)
-    m3.metric("Credit Amount", credit)
-    m4.metric("Annual Payment", annuity)
- 
- 
-def plot_distribution(col_name: str, dist: dict) -> plt.Figure:
-    """
-    Build a dark-themed histogram for one column.
-    Marks the customer's value in red and the population mean in dashed white.
-    """
-    bin_edges = np.array(dist["bin_edges"])
-    counts = np.array(dist["counts"])
-    bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2
-    bin_width = bin_edges[1] - bin_edges[0]
- 
-    fig, ax = plt.subplots(figsize=(5.5, 3.2), facecolor="#161b22")
-    ax.set_facecolor("#0d1117")
- 
-    ax.bar(
-        bin_centers, counts,
-        width=bin_width * 0.92,
-        color="#2d6cdf",
-        alpha=0.75,
-        edgecolor="none",
-        zorder=2,
-    )
- 
-    customer_val = dist.get("customer_value")
-    if customer_val is not None:
-        ax.axvline(
-            customer_val, color="#f85149", linewidth=2.0,
-            zorder=5, label=f"Customer: {customer_val:,.2f}"
-        )
- 
-    mean_val = dist.get("mean")
-    if mean_val is not None:
-        ax.axvline(
-            mean_val, color="#8b949e", linewidth=1.2,
-            linestyle="--", zorder=4, label=f"Mean: {mean_val:,.2f}"
-        )
- 
-    # Percentile badge — neutral colour so meaning is never colour-only.
-    # A ▲/▼ arrow conveys above/below-median for users who cannot rely on colour.
-    pct = dist.get("percentile")
-    if pct is not None:
-        arrow = "▲" if pct >= 50 else "▼"
-        ax.text(
-            0.97, 0.95, f"{arrow} P{pct:.0f}",
-            transform=ax.transAxes,
-            color="#c9d1d9", fontsize=9, fontweight="bold",
-            ha="right", va="top",
-        )
- 
-    # Legend (only when there are labelled artists)
-    handles, labels = ax.get_legend_handles_labels()
-    if handles:
-        ax.legend(
-            fontsize=9, loc="upper left",
-            facecolor="#161b22", edgecolor="#30363d",
-            labelcolor="#c9d1d9",
-        )
- 
-    # Axis styling — minimum 9 px so labels are legible
-    ax.set_title(col_name, color="#c9d1d9", fontsize=10, pad=6, loc="left")
-    ax.tick_params(axis="both", colors="#8b949e", labelsize=9)
-    for spine in ax.spines.values():
-        spine.set_edgecolor("#30363d")
-    ax.set_xlabel("")
-    ax.set_ylabel("Count", color="#8b949e", fontsize=9)
- 
-    # Sample size annotation bottom-right
-    n = dist.get("n", 0)
-    ax.text(
-        0.97, 0.05, f"n={n:,}",
-        transform=ax.transAxes,
-        color="#8b949e", fontsize=9, ha="right", va="bottom",
-    )
- 
-    plt.tight_layout(pad=0.8)
-    return fig
-
-
-def plot_bivariate_scatter(col_x: str, col_y: str, data: dict) -> plt.Figure:
-    """
-    Generates a high-performance dark-themed scatter interface.
-    Highlights specific tracking client with an isolated, high-contrast marker.
-    """
-    fig, ax = plt.subplots(figsize=(5.5, 3.8), facecolor="#161b22")
-    ax.set_facecolor("#0d1117")
- 
-    # Background Sample Population Scatter Map
-    ax.scatter(
-        data["pop_x"], data["pop_y"],
-        color="#2d6cdf", alpha=0.35, s=14, edgecolor="none", zorder=2,
-        label="Population Background"
-    )
- 
-    # Target Highlighted Customer Coordinates 
-    cx = data.get("customer_x")
-    cy = data.get("customer_y")
-    if cx is not None and cy is not None:
-        ax.scatter(
-            cx, cy,
-            color="#f85149", s=110, marker="X", edgecolor="#ffffff", linewidths=0.9, zorder=5,
-            label=f"Target Customer"
-        )
- 
-    # Label styling and contextual framing matching UI palette
-    ax.set_title(f"Bivariate Space Analysis", color="#c9d1d9", fontsize=10, pad=6, loc="left")
-    ax.tick_params(axis="both", colors="#8b949e", labelsize=9)
-    for spine in ax.spines.values():
-        spine.set_edgecolor("#30363d")
-        
-    ax.set_xlabel(col_x, color="#8b949e", fontsize=9)
-    ax.set_ylabel(col_y, color="#8b949e", fontsize=9)
- 
-    ax.legend(
-        fontsize=9, loc="upper right",
-        facecolor="#161b22", edgecolor="#30363d", labelcolor="#c9d1d9"
-    )
- 
-    n = data.get("n", 0)
-    ax.text(
-        0.97, 0.05, f"n={n:,}",
-        transform=ax.transAxes,
-        color="#8b949e", fontsize=9, ha="right", va="bottom"
-    )
- 
-    plt.tight_layout(pad=0.8)
-    return fig
- 
- 
-def fetch_distributions(sk_id: str, table: str, columns: list[str], filter_col: str = None, filter_val: str = None) -> dict:
-    """Fetch distribution data, factoring in optional filters."""
-    # We include filter parameters in the cache key so switching filters refetches data
-    cache = st.session_state.setdefault("dist_cache", {})
-    results = {}
-    missing = []
- 
-    for col in columns:
-        key = (table, col, filter_col, filter_val)
-        if key in cache:
-            results[col] = cache[key]
-        else:
-            missing.append((col, key))
- 
-    if missing:
-        with st.spinner(f"Fetching distributions for {len(missing)} column(s)…"):
-            for col, key in missing:
-                try:
-                    params = {"column": col, "sk_id": sk_id}
-                    if filter_col and filter_val is not None:
-                        params["filter_col"] = filter_col
-                        params["filter_val"] = filter_val
-                        
-                    resp = requests.get(f"{API_URL}/distributions/{table}", params=params, timeout=15)
-                    if resp.status_code == 200:
-                        data = resp.json()
-                        cache[key] = data
-                        results[col] = data
-                    else:
-                        st.warning(f"Could not fetch distribution for **{col}** (status {resp.status_code}).")
-                except requests.exceptions.RequestException as e:
-                    st.warning(f"Request failed for **{col}**: {e}")
- 
-    return results
- 
- 
-# ---------------------------------------------------------------------------
-# Header
-# ---------------------------------------------------------------------------
-st.markdown('<div class="title">Credit Scoring Dashboard</div>', unsafe_allow_html=True)
-st.markdown(
-    '<div class="subtitle">Home Credit Default Risk — Internal Risk Assessment Tool</div>',
+    """,
     unsafe_allow_html=True,
 )
- 
-# ---------------------------------------------------------------------------
-# Input row
-# ---------------------------------------------------------------------------
-sk_id = st.text_input("Customer ID (SK_ID_CURR)", placeholder="100001")
-col1, col2, col3 = st.columns([1, 1, 0.5])
-predict_btn     = col1.button("Predict & Explain", type="primary")
-explore_btn     = col2.button("Load Customer Data")
-check_api_btn   = col3.button("Check API Health")
- 
+
+
+# =============================================================================
+# HTTP helpers
+# =============================================================================
+
+def check_response(response: requests.Response, action: str) -> dict:
+    """Validate an API response and return its JSON payload."""
+    if response.status_code == 404:
+        raise ValueError("Customer ID not found.")
+
+    if response.status_code != 200:
+        raise RuntimeError(
+            f"{action} failed — status {response.status_code}: "
+            f"{response.text}"
+        )
+
+    try:
+        return response.json()
+    except ValueError as exc:
+        raise RuntimeError(
+            f"{action} returned invalid JSON."
+        ) from exc
+
+
+def fetch_prediction(sk_id: str) -> dict:
+    """Fetch the original prediction."""
+    response = requests.get(
+        f"{API_URL}/predict/{sk_id}",
+        timeout=30,
+    )
+
+    return check_response(response, "Prediction")
+
+
+def fetch_customer_data(sk_id: str) -> dict:
+    """Fetch the customer's raw data."""
+    response = requests.get(
+        f"{API_URL}/explore/{sk_id}",
+        timeout=30,
+    )
+
+    return check_response(response, "Customer data loading")
+
+
+def fetch_simulated_prediction(
+    sk_id: str,
+    table: str,
+    column: str,
+    value: Any,
+) -> dict:
+    """
+    Run a simulated prediction with one modified raw-data feature.
+
+    Expected request body:
+
+    {
+        "overrides": {
+            "application": {
+                "AMT_CREDIT": 250000
+            }
+        }
+    }
+    """
+    payload = {
+        "overrides": {
+            table: {
+                column: value,
+            }
+        }
+    }
+
+    response = requests.post(
+        f"{API_URL}/predict/{sk_id}",
+        json=payload,
+        timeout=30,
+    )
+
+    return check_response(response, "Simulated prediction")
+
+
+@st.cache_data(show_spinner=False, ttl=3600)
+def fetch_categorical_values(table: str, column: str) -> list:
+    """
+    Fetch possible values for one categorical column.
+
+    Expected endpoint:
+
+    GET /feature-values/{table}?column={column}
+
+    Expected response:
+
+    {
+        "values": ["Cash loans", "Revolving loans"]
+    }
+    """
+    try:
+        response = requests.get(
+            f"{API_URL}/feature-values/{table}",
+            params={"column": column},
+            timeout=15,
+        )
+
+        if response.status_code != 200:
+            return []
+
+        values = response.json().get("values", [])
+
+        return list(dict.fromkeys(values))
+
+    except (
+        requests.exceptions.RequestException,
+        ValueError,
+        TypeError,
+    ):
+        return []
+
+
+# =============================================================================
+# Data helpers
+# =============================================================================
+
+def is_numeric(value: Any) -> bool:
+    """Check whether a value is numeric, excluding booleans."""
+    return (
+        value is not None
+        and not isinstance(value, (bool, np.bool_))
+        and isinstance(
+            value,
+            (int, float, np.integer, np.floating),
+        )
+    )
+
+
+def format_value(value: Any) -> str:
+    """Format a value for display."""
+    if value is None:
+        return "Missing value"
+
+    if isinstance(value, (float, np.floating)):
+        return f"{value:,.6g}"
+
+    return str(value)
+
+
+def find_value(nested_data: dict, column: str) -> Any:
+    """Find a column value across all raw-data tables."""
+    for table_data in nested_data.values():
+        if isinstance(table_data, dict) and column in table_data:
+            return table_data[column]
+
+    return None
+
+
+def flatten_customer_data(nested_data: dict) -> dict:
+    """
+    Flatten the raw nested data into editable feature entries.
+
+    Output example:
+
+    {
+        "application · AMT_CREDIT": {
+            "table": "application",
+            "column": "AMT_CREDIT",
+            "value": 250000
+        }
+    }
+    """
+    features = {}
+
+    for table_name, table_data in nested_data.items():
+        if not isinstance(table_data, dict):
+            continue
+
+        for column_name, value in table_data.items():
+            if column_name in ID_COLUMNS:
+                continue
+
+            label = f"{table_name} · {column_name}"
+
+            features[label] = {
+                "table": table_name,
+                "column": column_name,
+                "value": value,
+            }
+
+    return features
+
+
+def numeric_columns(table_data: dict) -> list"""Return editable numeric columns from one raw-data table."""
+    return sorted(
+        column
+        for column, value in table_data.items()
+        if column not in ID_COLUMNS
+        and is_numeric(value)
+    )
+
+
+# =============================================================================
+# Rendering helpers
+# =============================================================================
+
+def render_section_title(title: str) -> None:
+    """Render a consistent section heading."""
+    st.markdown(
+        f'<h3 class="section-title">{title}</h3>',
+        unsafe_allow_html=True,
+    )
+
+
+def render_key_metrics(nested_data: dict) -> None:
+    """Render the four main customer metrics."""
+    days_birth = find_value(nested_data, "DAYS_BIRTH")
+    income = find_value(nested_data, "AMT_INCOME_TOTAL")
+    credit = find_value(nested_data, "AMT_CREDIT")
+    annuity = find_value(nested_data, "AMT_ANNUITY")
+
+    age = (
+        int(-days_birth / 365)
+        if is_numeric(days_birth)
+        else "N/A"
+    )
+
+    income_text = (
+        f"${income:,.0f}"
+        if is_numeric(income)
+        else "N/A"
+    )
+
+    credit_text = (
+        f"${credit:,.0f}"
+        if is_numeric(credit)
+        else "N/A"
+    )
+
+    annuity_text = (
+        f"${annuity:,.0f}"
+        if is_numeric(annuity)
+        else "N/A"
+    )
+
+    metric_1, metric_2, metric_3, metric_4 = st.columns(4)
+
+    metric_1.metric("Age", age)
+    metric_2.metric("Income", income_text)
+    metric_3.metric("Credit Amount", credit_text)
+    metric_4.metric("Annual Payment", annuity_text)
+
+def clamp(value: float, minimum: float = 0.0, maximum: float = 1.0) -> float:
+    """Keep a numeric value inside the requested interval."""
+    return max(minimum, min(maximum, value))
+
+
+def interpolate_color(
+    color_1: tuple[int, int, int],
+    color_2: tuple[int, int, int],
+    ratio: float,
+) -> str:
+    """Interpolate between two RGB colors and return a CSS hex color."""
+    ratio = clamp(ratio)
+
+    red = round(color_1[0] + (color_2[0] - color_1[0]) * ratio)
+    green = round(color_1[1] + (color_2[1] - color_1[1]) * ratio)
+    blue = round(color_1[2] + (color_2[2] - color_1[2]) * ratio)
+
+    return f"#{red:02x}{green:02x}{blue:02x}"
+
+
+def score_color(score: float, threshold: float) -> str:
+    """
+    Return a continuous color based on the distance from the threshold.
+
+    threshold - 0.30 or less -> red
+    threshold             -> yellow/orange
+    threshold + 0.30 or more -> green
+    """
+    red = (248, 81, 73)
+    orange = (240, 136, 62)
+    yellow = (210, 170, 45)
+    green = (46, 160, 67)
+
+    distance = score - threshold
+
+    if distance <= -0.30:
+        return "#f85149"
+
+    if distance < 0:
+        # Red -> orange/yellow when approaching the threshold.
+        ratio = (distance + 0.30) / 0.30
+
+        if ratio < 0.65:
+            return interpolate_color(
+                red,
+                orange,
+                ratio / 0.65,
+            )
+
+        return interpolate_color(
+            orange,
+            yellow,
+            (ratio - 0.65) / 0.35,
+        )
+
+    if distance < 0.30:
+        # Yellow/orange -> green after crossing the threshold.
+        return interpolate_color(
+            yellow,
+            green,
+            distance / 0.30,
+        )
+
+    return "#2ea043"
+
+
+def render_score_gauge(
+    score: float,
+    threshold: float,
+    label: str = "Payment Capability Score",
+) -> None:
+    """
+    Render an accessible continuous score gauge.
+
+    The gauge uses HTML/CSS only, so no additional dependency is required.
+    """
+    score = clamp(float(score))
+    threshold = clamp(float(threshold))
+
+    score_percentage = score * 100
+    threshold_percentage = threshold * 100
+    delta = score - threshold
+    color = score_color(score, threshold)
+
+    red_end = clamp(threshold - 0.30) * 100
+    orange_point = clamp(threshold - 0.10) * 100
+    threshold_point = threshold * 100
+    light_green_point = clamp(threshold + 0.10) * 100
+    green_start = clamp(threshold + 0.30) * 100
+
+    if delta <= -0.30:
+        interpretation = "Well below threshold"
+    elif delta < 0:
+        interpretation = "Below threshold"
+    elif delta < 0.30:
+        interpretation = "Above threshold"
+    else:
+        interpretation = "Well above threshold"
+
+    delta_sign = "+" if delta >= 0 else ""
+
+    st.markdown(
+        f"""
+        <div
+            style="
+                background: #161b22;
+                border: 1px solid #30363d;
+                border-radius: 12px;
+                padding: 1.25rem 1.4rem;
+                margin: 0.75rem 0 1.5rem 0;
+            "
+            role="img"
+            aria-label="
+                {label}: {score:.4f}.
+                Threshold: {threshold:.4f}.
+                Difference: {delta_sign}{delta:.4f}.
+                {interpretation}.
+            "
+        >
+            <div style="
+                display: flex;
+                justify-content: space-between;
+                align-items: flex-end;
+                gap: 1rem;
+                margin-bottom: 0.8rem;
+            ">
+                <div>
+                    <div class="metric-label">
+                        {label}
+                    </div>
+
+                    <div style="
+                        color: {color};
+                        font-size: 2rem;
+                        line-height: 1.1;
+                        font-weight: 700;
+                    ">
+                        {score:.4f}
+                    </div>
+                </div>
+
+                <div style="text-align: right;">
+                    <div style="
+                        color: {color};
+                        font-size: 0.95rem;
+                        font-weight: 600;
+                    ">
+                        {interpretation}
+                    </div>
+
+                    <div style="
+                        color: #8b949e;
+                        font-size: 0.8rem;
+                        margin-top: 0.15rem;
+                    ">
+                        Threshold {threshold:.4f}
+                        &nbsp;·&nbsp;
+                        Δ {delta_sign}{delta:.4f}
+                    </div>
+                </div>
+            </div>
+
+            <div style="
+                position: relative;
+                padding-top: 18px;
+                padding-bottom: 24px;
+            ">
+                <!-- Score marker -->
+                <div style="
+                    position: absolute;
+                    left: {score_percentage:.2f}%;
+                    top: 0;
+                    transform: translateX(-50%);
+                    z-index: 3;
+                ">
+                    <div style="
+                        width: 0;
+                        height: 0;
+                        border-left: 7px solid transparent;
+                        border-right: 7px solid transparent;
+                        border-top: 10px solid {color};
+                        margin: auto;
+                    "></div>
+                </div>
+
+                <!-- Gauge track -->
+                <div style="
+                    height: 18px;
+                    width: 100%;
+                    border-radius: 999px;
+                    border: 1px solid #30363d;
+                    background: linear-gradient(
+                        90deg,
+                        #f85149 0%,
+                        #f85149 {red_end:.2f}%,
+                        #f0883e {orange_point:.2f}%,
+                        #d2aa2d {threshold_point:.2f}%,
+                        #77b255 {light_green_point:.2f}%,
+                        #2ea043 {green_start:.2f}%,
+                        #2ea043 100%
+                    );
+                    box-shadow:
+                        inset 0 1px 3px rgba(0, 0, 0, 0.45),
+                        0 0 12px rgba(0, 0, 0, 0.2);
+                    overflow: hidden;
+                ">
+                    <!-- Subtle score fill -->
+                    <div style="
+                        width: {score_percentage:.2f}%;
+                        height: 100%;
+                        background: rgba(255, 255, 255, 0.13);
+                        border-right: 2px solid rgba(255, 255, 255, 0.9);
+                    "></div>
+                </div>
+
+                <!-- Threshold marker -->
+                <div style="
+                    position: absolute;
+                    left: {threshold_percentage:.2f}%;
+                    top: 15px;
+                    width: 3px;
+                    height: 24px;
+                    background: #ffffff;
+                    border-radius: 2px;
+                    transform: translateX(-50%);
+                    box-shadow: 0 0 4px rgba(0, 0, 0, 0.8);
+                    z-index: 2;
+                "></div>
+
+                <!-- Scale labels -->
+                <div style="
+                    position: absolute;
+                    left: 0;
+                    right: 0;
+                    bottom: 0;
+                    display: flex;
+                    justify-content: space-between;
+                    color: #8b949e;
+                    font-size: 0.72rem;
+                ">
+                    <span>0.00</span>
+
+                    <span style="
+                        position: absolute;
+                        left: {threshold_percentage:.2f}%;
+                        transform: translateX(-50%);
+                        color: #c9d1d9;
+                        font-weight: 600;
+                    ">
+                        Threshold
+                    </span>
+
+                    <span>1.00</span>
+                </div>
+            </div>
+
+            <div style="
+                display: flex;
+                align-items: center;
+                gap: 1.2rem;
+                flex-wrap: wrap;
+                margin-top: 0.5rem;
+                color: #8b949e;
+                font-size: 0.75rem;
+            ">
+                <span>
+                    <span style="
+                        display: inline-block;
+                        width: 9px;
+                        height: 9px;
+                        border-radius: 50%;
+                        background: #f85149;
+                        margin-right: 5px;
+                    "></span>
+                    Lower score
+                </span>
+
+                <span>
+                    <span style="
+                        display: inline-block;
+                        width: 9px;
+                        height: 9px;
+                        border-radius: 50%;
+                        background: #d2aa2d;
+                        margin-right: 5px;
+                    "></span>
+                    Near threshold
+                </span>
+
+                <span>
+                    <span style="
+                        display: inline-block;
+                        width: 9px;
+                        height: 9px;
+                        border-radius: 50%;
+                        background: #2ea043;
+                        margin-right: 5px;
+                    "></span>
+                    Higher score
+                </span>
+
+                <span style="margin-left: auto;">
+                    White line = decision threshold
+                </span>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+def render_prediction(
+    prediction: dict,
+    title: str = "Prediction Result",
+    show_explanations: bool = True,
+) -> None:
+    """Render one prediction result with a continuous score gauge."""
+    status = prediction.get("status", "Unknown")
+    probability = prediction.get("probability")
+    threshold = prediction.get("threshold")
+
+    approved = status == "Approved"
+
+    card_class = "approved" if approved else "rejected"
+    status_class = (
+        "status-approved"
+        if approved
+        else "status-rejected"
+    )
+    status_icon = "✓" if approved else "✗"
+
+    threshold_text = (
+        f"{threshold:.4f}"
+        if is_numeric(threshold)
+        else "N/A"
+    )
+
+    render_section_title(title)
+
+    st.markdown(
+        f"""
+        <div
+            class="result-card {card_class}"
+            role="region"
+            aria-label="{title}: {status}"
+        >
+            <div style="
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                gap: 1.5rem;
+                flex-wrap: wrap;
+            ">
+                <div>
+                    <div class="metric-label">Decision</div>
+
+                    <div class="{status_class}">
+                        {status_icon} {status}
+                    </div>
+                </div>
+
+                <div style="text-align: right;">
+                    <div class="metric-label">
+                        Decision Threshold
+                    </div>
+
+                    <div class="metric-value">
+                        {threshold_text}
+                    </div>
+                </div>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    if is_numeric(probability) and is_numeric(threshold):
+        render_score_gauge(
+            score=float(probability),
+            threshold=float(threshold),
+        )
+    else:
+        st.warning(
+            "The score gauge cannot be displayed because the score "
+            "or threshold is missing."
+        )
+
+    if not show_explanations:
+        return
+
+    local_image = prediction.get("loc_imp")
+    global_image = prediction.get("global_imp")
+
+    if local_image:
+        try:
+            render_section_title("Local Feature Importance")
+
+            st.image(
+                base64.b64decode(local_image),
+                caption=(
+                    "Factors influencing this customer's prediction."
+                ),
+            )
+
+        except (ValueError, TypeError):
+            st.warning(
+                "The local explanation image could not be decoded."
+            )
+
+    if global_image:
+        try:
+            render_section_title("Global Feature Importance")
+
+            st.image(
+                base64.b64decode(global_image),
+                caption=(
+                    "Most influential features across the model."
+                ),
+            )
+
+        except (ValueError, TypeError):
+            st.warning(
+                "The global explanation image could not be decoded."
+            )
+
+
+# =============================================================================
+# Charts
+# =============================================================================
+
+def plot_distribution(
+    column_name: str,
+    distribution: dict,
+) -> plt.Figure:
+    """Create a dark-themed distribution chart."""
+    bin_edges = np.asarray(
+        distribution.get("bin_edges", []),
+        dtype=float,
+    )
+
+    counts = np.asarray(
+        distribution.get("counts", []),
+        dtype=float,
+    )
+
+    figure, axis = plt.subplots(
+        figsize=(5.5, 3.2),
+        facecolor="#161b22",
+    )
+
+    axis.set_facecolor("#0d1117")
+
+    if len(bin_edges) >= 2 and len(counts) == len(bin_edges) - 1:
+        centers = (bin_edges[:-1] + bin_edges[1:]) / 2
+        widths = np.diff(bin_edges)
+
+        axis.bar(
+            centers,
+            counts,
+            width=widths * 0.92,
+            color="#2d6cdf",
+            alpha=0.75,
+            edgecolor="none",
+            zorder=2,
+        )
+    else:
+        axis.text(
+            0.5,
+            0.5,
+            "No distribution data",
+            transform=axis.transAxes,
+            color="#8b949e",
+            ha="center",
+            va="center",
+        )
+
+    customer_value = distribution.get("customer_value")
+
+    if is_numeric(customer_value):
+        axis.axvline(
+            customer_value,
+            color="#f85149",
+            linewidth=2,
+            label=f"Customer: {customer_value:,.4g}",
+            zorder=5,
+        )
+
+    mean_value = distribution.get("mean")
+
+    if is_numeric(mean_value):
+        axis.axvline(
+            mean_value,
+            color="#c9d1d9",
+            linewidth=1.2,
+            linestyle="--",
+            label=f"Mean: {mean_value:,.4g}",
+            zorder=4,
+        )
+
+    percentile = distribution.get("percentile")
+
+    if is_numeric(percentile):
+        arrow = "▲" if percentile >= 50 else "▼"
+
+        axis.text(
+            0.97,
+            0.95,
+            f"{arrow} P{percentile:.0f}",
+            transform=axis.transAxes,
+            color="#c9d1d9",
+            fontsize=9,
+            fontweight="bold",
+            ha="right",
+            va="top",
+        )
+
+    sample_size = distribution.get("n", 0)
+
+    if is_numeric(sample_size):
+        axis.text(
+            0.97,
+            0.05,
+            f"n={int(sample_size):,}",
+            transform=axis.transAxes,
+            color="#8b949e",
+            fontsize=9,
+            ha="right",
+            va="bottom",
+        )
+
+    handles, labels = axis.get_legend_handles_labels()
+
+    if handles:
+        axis.legend(
+            fontsize=9,
+            loc="upper left",
+            facecolor="#161b22",
+            edgecolor="#30363d",
+            labelcolor="#c9d1d9",
+        )
+
+    axis.set_title(
+        column_name,
+        color="#c9d1d9",
+        fontsize=10,
+        loc="left",
+        pad=6,
+    )
+
+    axis.set_ylabel(
+        "Count",
+        color="#8b949e",
+        fontsize=9,
+    )
+
+    axis.tick_params(
+        axis="both",
+        colors="#8b949e",
+        labelsize=9,
+    )
+
+    for spine in axis.spines.values():
+        spine.set_edgecolor("#30363d")
+
+    figure.tight_layout(pad=0.8)
+
+    return figure
+
+
+def plot_bivariate(
+    column_x: str,
+    column_y: str,
+    data: dict,
+) -> plt.Figure:
+    """Create a bivariate population scatter plot."""
+    figure, axis = plt.subplots(
+        figsize=(6, 4),
+        facecolor="#161b22",
+    )
+
+    axis.set_facecolor("#0d1117")
+
+    population_x = data.get("pop_x", [])
+    population_y = data.get("pop_y", [])
+
+    if len(population_x) and len(population_y):
+        axis.scatter(
+            population_x,
+            population_y,
+            color="#2d6cdf",
+            alpha=0.35,
+            s=14,
+            edgecolor="none",
+            label="Population",
+            zorder=2,
+        )
+
+    customer_x = data.get("customer_x")
+    customer_y = data.get("customer_y")
+
+    if is_numeric(customer_x) and is_numeric(customer_y):
+        axis.scatter(
+            customer_x,
+            customer_y,
+            color="#f85149",
+            s=110,
+            marker="X",
+            edgecolor="#ffffff",
+            linewidth=0.9,
+            label="Customer",
+            zorder=5,
+        )
+
+    sample_size = data.get("n", 0)
+
+    if is_numeric(sample_size):
+        axis.text(
+            0.97,
+            0.05,
+            f"n={int(sample_size):,}",
+            transform=axis.transAxes,
+            color="#8b949e",
+            fontsize=9,
+            ha="right",
+            va="bottom",
+        )
+
+    axis.set_title(
+        "Bivariate Space Analysis",
+        color="#c9d1d9",
+        fontsize=10,
+        loc="left",
+        pad=6,
+    )
+
+    axis.set_xlabel(
+        column_x,
+        color="#8b949e",
+        fontsize=9,
+    )
+
+    axis.set_ylabel(
+        column_y,
+        color="#8b949e",
+        fontsize=9,
+    )
+
+    axis.tick_params(
+        axis="both",
+        colors="#8b949e",
+        labelsize=9,
+    )
+
+    for spine in axis.spines.values():
+        spine.set_edgecolor("#30363d")
+
+    handles, labels = axis.get_legend_handles_labels()
+
+    if handles:
+        axis.legend(
+            fontsize=9,
+            loc="upper right",
+            facecolor="#161b22",
+            edgecolor="#30363d",
+            labelcolor="#c9d1d9",
+        )
+
+    figure.tight_layout(pad=0.8)
+
+    return figure
+
+
+# =============================================================================
+# Distribution API
+# =============================================================================
+
+def fetch_distributions(
+    sk_id: str,
+    table: str,
+    columns: list[str],
+) -> dict:
+    """Fetch and cache population distributions."""
+    cache = st.session_state.setdefault(
+        "distribution_cache",
+        {},
+    )
+
+    distributions = {}
+
+    for column in columns:
+        cache_key = (
+            str(sk_id),
+            table,
+            column,
+        )
+
+        if cache_key in cache:
+            distributions[column] = cache[cache_key]
+            continue
+
+        try:
+            response = requests.get(
+                f"{API_URL}/distributions/{table}",
+                params={
+                    "column": column,
+                    "sk_id": sk_id,
+                },
+                timeout=15,
+            )
+
+            if response.status_code != 200:
+                st.warning(
+                    f"Distribution unavailable for {column} "
+                    f"(status {response.status_code})."
+                )
+                continue
+
+            distribution = response.json()
+
+            cache[cache_key] = distribution
+            distributions[column] = distribution
+
+        except requests.exceptions.RequestException as exc:
+            st.warning(
+                f"Distribution request failed for {column}: {exc}"
+            )
+
+    return distributions
+
+
+# =============================================================================
+# Session state
+# =============================================================================
+
+for key, default_value in {
+    "current_sk_id": None,
+    "prediction": None,
+    "customer_data": None,
+    "simulated_prediction": None,
+    "simulation_details": None,
+    "distribution_cache": {},
+    "displayed_distributions": [],
+    "displayed_distribution_table": None,
+    "bivariate_result": None,
+}.items():
+    st.session_state.setdefault(key, default_value)
+
+
+def clear_customer_state() -> None:
+    """Clear state associated with the current customer."""
+    st.session_state["prediction"] = None
+    st.session_state["customer_data"] = None
+    st.session_state["simulated_prediction"] = None
+    st.session_state["simulation_details"] = None
+    st.session_state["distribution_cache"] = {}
+    st.session_state["displayed_distributions"] = []
+    st.session_state["displayed_distribution_table"] = None
+    st.session_state["bivariate_result"] = None
+
+
+# =============================================================================
+# Header
+# =============================================================================
+
+st.markdown(
+    '<div class="title">Credit Scoring Dashboard</div>',
+    unsafe_allow_html=True,
+)
+
+st.markdown(
+    """
+    <div class="subtitle">
+        Home Credit Default Risk — Internal Risk Assessment Tool
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
+
+
+# =============================================================================
+# Main controls
+# =============================================================================
+
+customer_id = st.text_input(
+    "Customer ID (SK_ID_CURR)",
+    placeholder="100001",
+).strip()
+
+button_column, health_column = st.columns([3, 1])
+
+predict_button = button_column.button(
+    "Predict & Explain",
+    type="primary",
+    use_container_width=True,
+)
+
+health_button = health_column.button(
+    "Check API Health",
+    use_container_width=True,
+)
+
 st.divider()
- 
-# ---------------------------------------------------------------------------
-# API health check
-# ---------------------------------------------------------------------------
-if check_api_btn:
+
+
+# =============================================================================
+# Health check
+# =============================================================================
+
+if health_button:
     with st.spinner("Checking API status…"):
         try:
-            resp = requests.get(f"{API_URL}/check_api", timeout=5)
-            if resp.status_code == 200 and "API is running" in resp.text:
-                st.success("API Health Check Successful: API is running.")
-            else:
-                st.error(f"API Health Check Failed (Status {resp.status_code}).")
-        except requests.exceptions.ConnectionError:
-            st.error("Connection Error: Could not reach the API endpoint.")
- 
-# ---------------------------------------------------------------------------
-# Prediction
-# ---------------------------------------------------------------------------
-if predict_btn:
-    if not sk_id:
-        st.warning("Please enter a Customer ID to run prediction.")
-    else:
-        with st.spinner("Running prediction…"):
-            try:
-                resp = requests.get(f"{API_URL}/predict/{sk_id}", timeout=30)
-                if resp.status_code == 404:
-                    st.error("Customer ID not found in the system.")
-                elif resp.status_code != 200:
-                    st.error(f"API error: Status Code {resp.status_code}")
-                else:
-                    data = resp.json()
-                    loc_imp    = base64.b64decode(data["loc_imp"])
-                    global_imp = base64.b64decode(data["global_imp"])
-                    status_icon  = "✓" if data["status"] == "Approved" else "✗"
-                    status_class = "approved" if data["status"] == "Approved" else "rejected"
-                    status_color = "status-approved" if data["status"] == "Approved" else "status-rejected"
- 
-                    st.markdown(f"""
-                        <div class="result-card {status_class}"
-                             role="region"
-                             aria-label="Prediction result: {data['status']}">
-                            <div style="display:flex; justify-content:space-between; align-items:center;">
-                                <div>
-                                    <div class="metric-label">Decision</div>
-                                    <div class="{status_color}">{status_icon} {data["status"]}</div>
-                                </div>
-                                <div>
-                                    <div class="metric-label">Payment Capability Score</div>
-                                    <div class="metric-value">{data["probability"]:.4f}</div>
-                                </div>
-                                <div>
-                                    <div class="metric-label">Threshold</div>
-                                    <div class="metric-value">{data["threshold"]:.4f}</div>
-                                </div>
-                            </div>
-                        </div>
-                    """, unsafe_allow_html=True)
- 
-                    st.markdown('<h3 class="section-title">Local Feature Importance</h3>', unsafe_allow_html=True)
-                    st.image(
-                        loc_imp,
-                        caption=(
-                            "Local SHAP feature importance: the top factors that pushed this "
-                            "customer's credit score above or below the decision threshold."
-                        ),
-                    )
-                    st.markdown('<h3 class="section-title">Global Feature Importance</h3>', unsafe_allow_html=True)
-                    st.image(
-                        global_imp,
-                        caption=(
-                            "Global feature importance: the most influential features across "
-                            "all customers in the trained model."
-                        ),
-                    )
- 
-            except requests.exceptions.ConnectionError:
-                st.error("Could not connect to API.")
- 
-# ---------------------------------------------------------------------------
-# Load customer data (explore endpoint)
-# ---------------------------------------------------------------------------
-if explore_btn:
-    if not sk_id:
-        st.warning("Please enter a Customer ID to load data.")
-    else:
-        with st.spinner("Loading customer data…"):
-            try:
-                resp = requests.get(f"{API_URL}/explore/{sk_id}", timeout=30)
-                if resp.status_code == 404:
-                    st.error("Customer ID not found.")
-                elif resp.status_code != 200:
-                    st.error(f"API error: Status Code {resp.status_code}")
-                else:
-                    # Store nested { table: { col: val } } in session
-                    st.session_state["customer_data"]  = resp.json()
-                    st.session_state["current_sk_id"]  = sk_id
-                    st.session_state["dist_cache"]     = {}   # clear cache for new customer
-            except requests.exceptions.ConnectionError:
-                st.error("Could not connect to API.")
- 
-# ---------------------------------------------------------------------------
-# Explorer UI — shown whenever valid customer data is in session state
-# (persists across button clicks so the user can freely switch between
-#  Predict and Explorer without re-loading each time)
-# ---------------------------------------------------------------------------
-if (
-    "customer_data" in st.session_state
-    and sk_id == st.session_state.get("current_sk_id")
-):
-    nested_data: dict = st.session_state["customer_data"]
- 
-    st.markdown("---")
- 
-    # ── Key metrics ──────────────────────────────────────────────────────────
-    st.markdown('<h3 class="section-title">Key Metrics</h3>', unsafe_allow_html=True)
-    render_key_metrics(nested_data)
-    st.divider()
- 
-    # ── Distribution explorer ─────────────────────────────────────────────────
-    st.markdown('<h3 class="section-title">Distribution Explorer</h3>', unsafe_allow_html=True)
- 
-    # 1. Table selector
-    all_tables = list(nested_data.keys())
-    selected_table = st.selectbox(
-        "Source table",
-        options=all_tables,
-        help="Each table corresponds to a different data source for this customer.",
-    )
- 
-    # 2. Column selector — only numeric, non-null columns
-    table_cols = sorted([
-        col for col, val in nested_data[selected_table].items()
-        if val is not None and col not in ("SK_ID_CURR", "SK_ID_BUREAU", "SK_ID_PREV")
-        and isinstance(val, (int, float))
-    ])
- 
-    if not table_cols:
-        st.info("No numeric columns available in this table.")
-    else:
-        selected_cols = st.multiselect(
-            "Columns to visualise",
-            options=table_cols,
-            help="Select one or more numeric columns to see their population distribution.",
-        )
- 
-        show_btn = st.button("Show Distributions")
- 
-        if show_btn:
-            if not selected_cols:
-                st.info("Select at least one column above, then click Show Distributions.")
-            else:
-                st.session_state["selected_cols_display"] = selected_cols
-                st.session_state["selected_table_display"] = selected_table
- 
-        # Render plots if we have a committed selection
-        disp_table = st.session_state.get("selected_table_display")
-        disp_cols  = st.session_state.get("selected_cols_display", [])
- 
-        # Reset display if the table changed
-        if disp_table != selected_table:
-            disp_cols = []
- 
-        if disp_cols:
-            dist_data = fetch_distributions(
-                st.session_state["current_sk_id"], disp_table, disp_cols
+            response = requests.get(
+                f"{API_URL}/check_api",
+                timeout=5,
             )
- 
-            if dist_data:
-                # Grid: 2 plots per row
-                cols_per_row = 2
-                for row_start in range(0, len(disp_cols), cols_per_row):
-                    grid = st.columns(cols_per_row)
-                    for j, col in enumerate(disp_cols[row_start: row_start + cols_per_row]):
-                        with grid[j]:
-                            if col in dist_data:
-                                fig = plot_distribution(col, dist_data[col])
-                                st.pyplot(fig, clear_figure=True)
-                                plt.close(fig)
- 
-                                d = dist_data[col]
-                                pct   = d.get("percentile")
-                                cval  = d.get("customer_value")
-                                mean  = d.get("mean")
-                                std   = d.get("std")
-                                caption_parts = []
-                                if cval  is not None: caption_parts.append(f"Customer: **{cval:,.4g}**")
-                                if pct   is not None: caption_parts.append(f"Percentile: **P{pct:.0f}**")
-                                if mean  is not None: caption_parts.append(f"Mean: {mean:,.4g}")
-                                if std   is not None: caption_parts.append(f"Std: {std:,.4g}")
-                                if caption_parts:
-                                    st.caption("  ·  ".join(caption_parts))
- 
-    st.divider()
- 
-    # ── Column value table ────────────────────────────────────────────────────
-    st.markdown('<h3 class="section-title">Column Explorer</h3>', unsafe_allow_html=True)
- 
-    all_flat_cols = sorted([
-        f"{table} · {col}"
-        for table, cols in nested_data.items()
-        for col, val in cols.items()
-        if val is not None and col not in ("SK_ID_CURR",)
-    ])
- 
-    selected_flat = st.multiselect(
-        "Select columns to inspect (any table)",
-        options=all_flat_cols,
-        help="Format: table · column_name",
+
+            if response.status_code == 200:
+                st.success("API is running.")
+            else:
+                st.error(
+                    f"API health check failed "
+                    f"(status {response.status_code})."
+                )
+
+        except requests.exceptions.RequestException as exc:
+            st.error(f"Could not reach the API: {exc}")
+
+
+# =============================================================================
+# Prediction + raw-data loading
+# =============================================================================
+
+if predict_button:
+    if not customer_id:
+        st.warning("Please enter a Customer ID.")
+    else:
+        clear_customer_state()
+
+        with st.spinner(
+            "Running prediction and loading customer data…"
+        ):
+            try:
+                prediction = fetch_prediction(customer_id)
+                customer_data = fetch_customer_data(customer_id)
+
+                st.session_state["current_sk_id"] = customer_id
+                st.session_state["prediction"] = prediction
+                st.session_state["customer_data"] = customer_data
+
+            except ValueError as exc:
+                st.error(str(exc))
+
+            except RuntimeError as exc:
+                st.error(str(exc))
+
+            except requests.exceptions.Timeout:
+                st.error("The API request timed out.")
+
+            except requests.exceptions.RequestException as exc:
+                st.error(f"Could not connect to the API: {exc}")
+
+
+# =============================================================================
+# Display customer workspace
+# =============================================================================
+
+customer_loaded = (
+    customer_id
+    and customer_id == st.session_state["current_sk_id"]
+    and st.session_state["prediction"] is not None
+    and st.session_state["customer_data"] is not None
+)
+
+if customer_loaded:
+    prediction = st.session_state["prediction"]
+    customer_data = st.session_state["customer_data"]
+
+    # -------------------------------------------------------------------------
+    # Original prediction
+    # -------------------------------------------------------------------------
+
+    render_prediction(
+        prediction,
+        title="Prediction Result",
+        show_explanations=True,
     )
- 
-    if selected_flat:
+
+    st.divider()
+
+    # -------------------------------------------------------------------------
+    # What-if simulation
+    # -------------------------------------------------------------------------
+
+    render_section_title("What-if Simulation")
+
+    st.caption(
+        "Select one raw-data feature, change its value and rerun the model."
+    )
+
+    flattened_features = flatten_customer_data(customer_data)
+
+    if flattened_features:
+        feature_labels = sorted(flattened_features)
+
+        selected_feature_label = st.selectbox(
+            "Raw-data feature",
+            options=feature_labels,
+            key="simulation_feature",
+            help="Format: source table · column",
+        )
+
+        selected_feature = flattened_features[
+            selected_feature_label
+        ]
+
+        selected_table = selected_feature["table"]
+        selected_column = selected_feature["column"]
+        original_value = selected_feature["value"]
+
+        st.caption(
+            f"Current value: `{format_value(original_value)}`"
+        )
+
+        /*
+        The feature selector remains outside the form.
+
+        This is necessary because changing a widget inside a Streamlit form
+        does not immediately rerun the page. Keeping it outside allows the
+        editor below to switch directly between number_input and selectbox.
+        */
+
+        if is_numeric(original_value):
+            integer_value = isinstance(
+                original_value,
+                (int, np.integer),
+            )
+
+            with st.form("numeric_simulation_form"):
+                if integer_value:
+                    simulated_value = st.number_input(
+                        "New numerical value",
+                        value=int(original_value),
+                        step=1,
+                    )
+                else:
+                    simulated_value = st.number_input(
+                        "New numerical value",
+                        value=float(original_value),
+                        format="%.8f",
+                    )
+
+                simulation_button = st.form_submit_button(
+                    "Run Simulated Prediction",
+                    type="primary",
+                    use_container_width=True,
+                )
+
+        else:
+            possible_values = fetch_categorical_values(
+                selected_table,
+                selected_column,
+            )
+
+            if original_value not in possible_values:
+                possible_values.insert(0, original_value)
+
+            possible_values = list(
+                dict.fromkeys(possible_values)
+            )
+
+            with st.form("categorical_simulation_form"):
+                simulated_value = st.selectbox(
+                    "New categorical value",
+                    options=possible_values,
+                    index=possible_values.index(original_value),
+                    format_func=format_value,
+                )
+
+                simulation_button = st.form_submit_button(
+                    "Run Simulated Prediction",
+                    type="primary",
+                    use_container_width=True,
+                    disabled=len(possible_values) <= 1,
+                )
+
+            if len(possible_values) <= 1:
+                st.info(
+                    "No alternative category was returned by the API "
+                    "for this feature."
+                )
+
+        if simulation_button:
+            with st.spinner("Running simulated prediction…"):
+                try:
+                    simulated_prediction = (
+                        fetch_simulated_prediction(
+                            customer_id,
+                            selected_table,
+                            selected_column,
+                            simulated_value,
+                        )
+                    )
+
+                    st.session_state[
+                        "simulated_prediction"
+                    ] = simulated_prediction
+
+                    st.session_state["simulation_details"] = {
+                        "table": selected_table,
+                        "column": selected_column,
+                        "original_value": original_value,
+                        "simulated_value": simulated_value,
+                    }
+
+                except ValueError as exc:
+                    st.error(str(exc))
+
+                except RuntimeError as exc:
+                    st.error(str(exc))
+
+                except requests.exceptions.Timeout:
+                    st.error(
+                        "The simulated prediction timed out."
+                    )
+
+                except requests.exceptions.RequestException as exc:
+                    st.error(
+                        f"Could not connect to the API: {exc}"
+                    )
+
+        # ---------------------------------------------------------------------
+        # Simulated result
+        # ---------------------------------------------------------------------
+
+        simulated_prediction = st.session_state[
+            "simulated_prediction"
+        ]
+
+        simulation_details = st.session_state[
+            "simulation_details"
+        ]
+
+        if simulated_prediction and simulation_details:
+            st.markdown("---")
+
+            render_section_title("Simulation Comparison")
+
+            original_probability = prediction.get("probability")
+            simulated_probability = simulated_prediction.get(
+                "probability"
+            )
+
+            comparison_1, comparison_2, comparison_3 = st.columns(3)
+
+            comparison_1.metric(
+                "Original Score",
+                (
+                    f"{original_probability:.4f}"
+                    if is_numeric(original_probability)
+                    else "N/A"
+                ),
+            )
+
+            comparison_2.metric(
+                "Simulated Score",
+                (
+                    f"{simulated_probability:.4f}"
+                    if is_numeric(simulated_probability)
+                    else "N/A"
+                ),
+            )
+
+            if (
+                is_numeric(original_probability)
+                and is_numeric(simulated_probability)
+            ):
+                comparison_3.metric(
+                    "Score Variation",
+                    f"{simulated_probability - original_probability:+.4f}",
+                )
+            else:
+                comparison_3.metric(
+                    "Score Variation",
+                    "N/A",
+                )
+
+            st.caption(
+                f"Modified feature: "
+                f"**{simulation_details['table']} · "
+                f"{simulation_details['column']}** — "
+                f"`{format_value(simulation_details['original_value'])}` "
+                f"→ "
+                f"`{format_value(simulation_details['simulated_value'])}`"
+            )
+
+            render_prediction(
+                simulated_prediction,
+                title="Simulated Prediction Result",
+                show_explanations=True,
+            )
+
+            if st.button(
+                "Clear Simulation",
+                use_container_width=True,
+            ):
+                st.session_state["simulated_prediction"] = None
+                st.session_state["simulation_details"] = None
+                st.rerun()
+
+    else:
+        st.info("No editable raw-data features are available.")
+
+    st.divider()
+
+    # -------------------------------------------------------------------------
+    # Key metrics
+    # -------------------------------------------------------------------------
+
+    render_section_title("Key Metrics")
+    render_key_metrics(customer_data)
+
+    st.divider()
+
+    # -------------------------------------------------------------------------
+    # Distribution explorer
+    # -------------------------------------------------------------------------
+
+    render_section_title("Distribution Explorer")
+
+    available_tables = [
+        table
+        for table, table_data in customer_data.items()
+        if isinstance(table_data, dict)
+    ]
+
+    distribution_table = st.selectbox(
+        "Source table",
+        options=available_tables,
+        key="distribution_table",
+    )
+
+    available_numeric_columns = numeric_columns(
+        customer_data[distribution_table]
+    )
+
+    if not available_numeric_columns:
+        st.info(
+            "No numeric columns are available in this table."
+        )
+    else:
+        selected_distribution_columns = st.multiselect(
+            "Columns to visualise",
+            options=available_numeric_columns,
+            key="distribution_columns",
+        )
+
+        if st.button(
+            "Show Distributions",
+            use_container_width=True,
+        ):
+            if selected_distribution_columns:
+                st.session_state[
+                    "displayed_distributions"
+                ] = selected_distribution_columns
+
+                st.session_state[
+                    "displayed_distribution_table"
+                ] = distribution_table
+            else:
+                st.info("Select at least one numeric column.")
+
+        displayed_table = st.session_state[
+            "displayed_distribution_table"
+        ]
+
+        displayed_columns = st.session_state[
+            "displayed_distributions"
+        ]
+
+        if displayed_table == distribution_table and displayed_columns:
+            with st.spinner("Loading distributions…"):
+                distributions = fetch_distributions(
+                    customer_id,
+                    distribution_table,
+                    displayed_columns,
+                )
+
+            for start in range(0, len(displayed_columns), 2):
+                chart_columns = st.columns(2)
+
+                current_columns = displayed_columns[
+                    start:start + 2
+                ]
+
+                for index, column in enumerate(current_columns):
+                    distribution = distributions.get(column)
+
+                    if not distribution:
+                        continue
+
+                    with chart_columns[index]:
+                        figure = plot_distribution(
+                            column,
+                                 )
+
+                        st.pyplot(
+                            figure,
+                            clear_figure=True,
+                        )
+
+                        plt.close(figure)
+
+                        caption = []
+
+                        customer_value = distribution.get(
+                            "customer_value"
+                        )
+                        percentile = distribution.get("percentile")
+                        mean_value = distribution.get("mean")
+                        standard_deviation = distribution.get("std")
+
+                        if is_numeric(customer_value):
+                            caption.append(
+                                f"Customer: "
+                                f"**{customer_value:,.4g}**"
+                            )
+
+                        if is_numeric(percentile):
+                            caption.append(
+                                f"Percentile: "
+                                f"**P{percentile:.0f}**"
+                            )
+
+                        if is_numeric(mean_value):
+                            caption.append(
+                                f"Mean: {mean_value:,.4g}"
+                            )
+
+                        if is_numeric(standard_deviation):
+                            caption.append(
+                                f"Std: {standard_deviation:,.4g}"
+                            )
+
+                        if caption:
+                            st.caption(" · ".join(caption))
+
+    st.divider()
+
+    # -------------------------------------------------------------------------
+    # Raw column explorer
+    # -------------------------------------------------------------------------
+
+    render_section_title("Column Explorer")
+
+    all_raw_features = flatten_customer_data(customer_data)
+
+    selected_raw_features = st.multiselect(
+        "Columns to inspect",
+        options=sorted(all_raw_features),
+        help="Format: source table · column",
+    )
+
+    if selected_raw_features:
         rows = []
-        for entry in selected_flat:
-            table_name, col_name = entry.split(" · ", 1)
-            val = nested_data.get(table_name, {}).get(col_name)
-            rows.append({"Table": table_name, "Feature": col_name, "Value": val})
- 
+
+        for feature_label in selected_raw_features:
+            feature = all_raw_features[feature_label]
+
+            rows.append(
+                {
+                    "Table": feature["table"],
+                    "Feature": feature["column"],
+                    "Value": feature["value"],
+                }
+            )
+
         st.dataframe(
             pd.DataFrame(rows),
             use_container_width=True,
             hide_index=True,
         )
 
-
-
     st.divider()
 
-    # ── Bivariate Explorer Interface ──────────────────────────────────────────
-    st.markdown('<h3 class="section-title">Bivariate Coordinate Analysis</h3>', unsafe_allow_html=True)
- 
-    # Dynamic Column Filtering mapping from the selected workspace table
-    biv_cols = sorted([
-        col for col, val in nested_data[selected_table].items()
-        if val is not None and col not in ("SK_ID_CURR", "SK_ID_BUREAU", "SK_ID_PREV")
-        and isinstance(val, (int, float))
-    ])
- 
-    if not biv_cols:
-        st.info("Insufficient quantitative data vectors available in this workspace table.")
+    # -------------------------------------------------------------------------
+    # Bivariate explorer
+    # -------------------------------------------------------------------------
+
+    render_section_title("Bivariate Coordinate Analysis")
+
+    bivariate_table = st.selectbox(
+        "Bivariate source table",
+        options=available_tables,
+        key="bivariate_table",
+    )
+
+    bivariate_columns = numeric_columns(
+        customer_data[bivariate_table]
+    )
+
+    if len(bivariate_columns) < 2:
+        st.info(
+            "At least two numeric columns are required."
+        )
     else:
-        bx1, bx2 = st.columns(2)
-        with bx1:
-            col_x = st.selectbox("Horizontal Axis (X)", options=biv_cols, index=0, key="biv_axis_x")
-        with bx2:
-            y_init = 1 if len(biv_cols) > 1 else 0
-            col_y = st.selectbox("Vertical Axis (Y)", options=biv_cols, index=y_init, key="biv_axis_y")
- 
-        # Add filtering using existing columns and values
-        filter_options = ["No Active Segment Filter"] + sorted(list(nested_data[selected_table].keys()))
-        selected_filter_col = st.selectbox("Filter Reference Frame (Optional)", options=filter_options, key="biv_filter_col")
-        
-        filter_params = {}
-        if selected_filter_col != "No Active Segment Filter":
-            target_filter_val = nested_data[selected_table].get(selected_filter_col)
-            filter_params["filter_col"] = selected_filter_col
-            filter_params["filter_val"] = target_filter_val
-            st.caption(f"Comparing user against population where **{selected_filter_col}** matches customer value: `{target_filter_val}`")
- 
-        if st.button("Generate Bivariate Space Map"):
-            if col_x == col_y:
-                st.error("Please pick unique structural column targets for distinct dimensions.")
+        axis_column_1, axis_column_2 = st.columns(2)
+
+        column_x = axis_column_1.selectbox(
+            "Horizontal Axis (X)",
+            options=bivariate_columns,
+            index=0,
+            key="bivariate_x",
+        )
+
+        column_y = axis_column_2.selectbox(
+            "Vertical Axis (Y)",
+            options=bivariate_columns,
+            index=1,
+            key="bivariate_y",
+        )
+
+        if st.button(
+            "Generate Bivariate Map",
+            use_container_width=True,
+        ):
+            if column_x == column_y:
+                st.warning(
+                    "Select two different numeric columns."
+                )
             else:
-                with st.spinner("Processing coordinate maps from server database..."):
+                with st.spinner(
+                    "Loading bivariate population data…"
+                ):
                     try:
-                        req_payload = {
-                            "col_x": col_x,
-                            "col_y": col_y,
-                            "sk_id": st.session_state["current_sk_id"],
-                            **filter_params
+                        response = requests.get(
+                            f"{API_URL}/bivariate/{bivariate_table}",
+                            params={
+                                "col_x": column_x,
+                                "col_y": column_y,
+                                "sk_id": customer_id,
+                            },
+                            timeout=20,
+                        )
+
+                        bivariate_data = check_response(
+                            response,
+                            "Bivariate analysis",
+                        )
+
+                        st.session_state["bivariate_result"] = {
+                            "table": bivariate_table,
+                            "column_x": column_x,
+                            "column_y": column_y,
+                            "data": bivariate_data,
                         }
-                        resp = requests.get(f"{API_URL}/bivariate/{selected_table}", params=req_payload, timeout=20)
-                        
-                        if resp.status_code == 200:
-                            biv_results = resp.json()
-                            fig_biv = plot_bivariate_scatter(col_x, col_y, biv_results)
-                            st.pyplot(fig_biv, clear_figure=True)
-                            plt.close(fig_biv)
-                            
-                            # Render contextual readout summary
-                            cx_val = biv_results.get("customer_x")
-                            cy_val = biv_results.get("customer_y")
-                            if cx_val is not None and cy_val is not None:
-                                st.caption(f"Target Location Coordinates inside layout space — **{col_x}**: {cx_val:,.4g} · **{col_y}**: {cy_val:,.4g}")
-                            else:
-                                st.warning("Target Client lacks data for at least one chosen dimension. Background context rendered below.")
-                        else:
-                            st.error(f"Failed retrieval interface pipeline: Code {resp.status_code} - {resp.text}")
-                    except requests.exceptions.RequestException as err:
-                        st.error(f"Network transport pipeline disrupted: {err}")
+
+                    except ValueError as exc:
+                        st.error(str(exc))
+
+                    except RuntimeError as exc:
+                        st.error(str(exc))
+
+                    except requests.exceptions.RequestException as exc:
+                        st.error(
+                            f"Bivariate request failed: {exc}"
+                        )
+
+        bivariate_result = st.session_state[
+            "bivariate_result"
+        ]
+
+        if (
+            bivariate_result
+            and bivariate_result["table"] == bivariate_table
+        ):
+            figure = plot_bivariate(
+                bivariate_result["column_x"],
+                bivariate_result["column_y"],
+                bivariate_result["data"],
+            )
+
+            st.pyplot(
+                figure,
+                clear_figure=True,
+            )
+
+            plt.close(figure)
+
+            bivariate_data = bivariate_result["data"]
+
+            customer_x = bivariate_data.get("customer_x")
+            customer_y = bivariate_data.get("customer_y")
+
+            if is_numeric(customer_x) and is_numeric(customer_y):
+                st.caption(
+                    f"Customer coordinates — "
+                    f"**{bivariate_result['column_x']}**: "
+                    f"{customer_x:,.4g} · "
+                    f"**{bivariate_result['column_y']}**: "
+                    f"{customer_y:,.4g}"
+                )

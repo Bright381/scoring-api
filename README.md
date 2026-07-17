@@ -17,6 +17,5 @@ This project implements a **Credit Scoring System** for a financial company. It 
 ```
 ├── api_model_info/  # Model data
 ├── streamlit_ui/    # Streamlit UI code
-├── utils/           # Data fecthing tools
-└── data/            # Data sample
+└── utils/           # Data fecthing and preprocessing tools
 ```
