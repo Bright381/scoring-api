@@ -11,7 +11,7 @@ import numpy as np
 import pandas as pd
 import requests
 import streamlit as st
-
+import textwrap
 
 # =============================================================================
 # Configuration
@@ -37,100 +37,102 @@ st.set_page_config(
 # =============================================================================
 
 st.markdown(
-    """
-    <style>
-        html,
-        body,
-        [class*="css"] {
-            font-family: "DM Sans", sans-serif;
-            background-color: #0d1117;
-            color: #c9d1d9;
-        }
+    textwrap.dedent(
+        """
+        <style>
+            html,
+            body,
+            [class*="css"] {
+                font-family: "DM Sans", sans-serif;
+                background-color: #0d1117;
+                color: #c9d1d9;
+            }
 
-        .title {
-            font-family: "DM Mono", monospace;
-            font-size: 2rem;
-            font-weight: 500;
-            color: #ffffff;
-            letter-spacing: -0.02em;
-            margin-bottom: 0.2rem;
-        }
+            .title {
+                font-family: "DM Mono", monospace;
+                font-size: 2rem;
+                font-weight: 500;
+                color: #ffffff;
+                letter-spacing: -0.02em;
+                margin-bottom: 0.2rem;
+            }
 
-        .subtitle {
-            font-size: 0.9rem;
-            color: #8b949e;
-            margin-bottom: 2rem;
-        }
+            .subtitle {
+                font-size: 0.9rem;
+                color: #8b949e;
+                margin-bottom: 2rem;
+            }
 
-        .result-card {
-            background: #161b22;
-            border: 1px solid #30363d;
-            border-radius: 12px;
-            padding: 1.5rem;
-            margin-bottom: 1rem;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.45);
-        }
+            .result-card {
+                background: #161b22;
+                border: 1px solid #30363d;
+                border-radius: 12px;
+                padding: 1.5rem;
+                margin-bottom: 1rem;
+                box-shadow: 0 4px 15px rgba(0, 0, 0, 0.45);
+            }
 
-        .approved {
-            border-left: 4px solid #2ea043;
-        }
+            .approved {
+                border-left: 4px solid #2ea043;
+            }
 
-        .rejected {
-            border-left: 4px solid #f85149;
-        }
+            .rejected {
+                border-left: 4px solid #f85149;
+            }
 
-        .metric-label {
-            font-family: "DM Mono", monospace;
-            font-size: 0.75rem;
-            color: #8b949e;
-            text-transform: uppercase;
-            letter-spacing: 0.08em;
-        }
+            .metric-label {
+                font-family: "DM Mono", monospace;
+                font-size: 0.75rem;
+                color: #8b949e;
+                text-transform: uppercase;
+                letter-spacing: 0.08em;
+            }
 
-        .metric-value {
-            font-size: 2rem;
-            font-weight: 600;
-            color: #ffffff;
-        }
+            .metric-value {
+                font-size: 2rem;
+                font-weight: 600;
+                color: #ffffff;
+            }
 
-        .status-approved {
-            color: #2ea043;
-            font-size: 1.4rem;
-            font-weight: 600;
-        }
+            .status-approved {
+                color: #2ea043;
+                font-size: 1.4rem;
+                font-weight: 600;
+            }
 
-        .status-rejected {
-            color: #f85149;
-            font-size: 1.4rem;
-            font-weight: 600;
-        }
+            .status-rejected {
+                color: #f85149;
+                font-size: 1.4rem;
+                font-weight: 600;
+            }
 
-        .section-title {
-            font-family: "DM Mono", monospace;
-            font-size: 0.8rem;
-            font-weight: 400;
-            color: #8b949e;
-            text-transform: uppercase;
-            letter-spacing: 0.1em;
-            margin-top: 0;
-            margin-bottom: 1rem;
-            padding-bottom: 0.5rem;
-            border-bottom: 1px solid #30363d;
-        }
+            .section-title {
+                font-family: "DM Mono", monospace;
+                font-size: 0.8rem;
+                font-weight: 400;
+                color: #8b949e;
+                text-transform: uppercase;
+                letter-spacing: 0.1em;
+                margin-top: 0;
+                margin-bottom: 1rem;
+                padding-bottom: 0.5rem;
+                border-bottom: 1px solid #30363d;
+            }
 
-        .simulation-box {
-            background: #161b22;
-            border: 1px solid #30363d;
-            border-radius: 12px;
-            padding: 1.25rem;
-            margin-bottom: 1rem;
-        }
+            .simulation-box {
+                background: #161b22;
+                border: 1px solid #30363d;
+                border-radius: 12px;
+                padding: 1.25rem;
+                margin-bottom: 1rem;
+            }
 
-        div[data-testid="stSidebar"] {
-            background-color: #0d1117 !important;
-        }
-    </style>
-    """,
+            div[data-testid="stSidebar"] {
+                background-color: #0d1117 !important;
+            }
+        </style>
+        """
+    ),
     unsafe_allow_html=True,
 )
 
