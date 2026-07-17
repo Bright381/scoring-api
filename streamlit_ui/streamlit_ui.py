@@ -12,11 +12,13 @@ import pandas as pd
 import requests
 import streamlit as st
 import textwrap
+import re
+from dotenv import load_dotenv
 
 # =============================================================================
 # Configuration
 # =============================================================================
-
+load_dotenv()
 API_URL = os.environ["API_URL"].rstrip("/")
 
 ID_COLUMNS = {
@@ -69,10 +71,10 @@ st.markdown(
                 box-shadow: 0 4px 15px rgba(0, 0, 0, 0.45);
             }
             .approved {
-                border-left: 4px solid #2ea043;
+                border-left: 8px solid #2ea043;
             }
             .rejected {
-                border-left: 4px solid #f85149;
+                border-left: 8px solid #f85149;
             }
             .metric-label {
                 font-family: "DM Mono", monospace;
@@ -325,6 +327,15 @@ def numeric_columns(table_data: dict) -> list:
 # =============================================================================
 # Rendering helpers
 # =============================================================================
+def render_safe_html(html_content: str) -> None:
+    """
+    Safely renders HTML in Streamlit by minifying it into a single line.
+    This entirely prevents the Markdown parser from mistakenly treating
+    indented HTML or blank lines as raw code blocks.
+    """
+    minified_html = re.sub(r'\s+', ' ', html_content).strip()
+    st.markdown(minified_html, unsafe_allow_html=True)
+
 
 def render_section_title(title: str) -> None:
     """Render a consistent section heading."""
@@ -473,8 +484,7 @@ def render_score_gauge(
 
     delta_sign = "+" if delta >= 0 else ""
 
-    st.markdown(
-        textwrap.dedent(
+    render_safe_html(
             f"""
             <div
                 style="
@@ -524,7 +534,7 @@ def render_score_gauge(
 
                         <div style="
                             color: #8b949e;
-                            font-size: 0.8rem;
+                            font-size: 1.2rem;
                             margin-top: 0.15rem;
                         ">
                             Threshold {threshold:.4f}
@@ -550,9 +560,9 @@ def render_score_gauge(
                         <div style="
                             width: 0;
                             height: 0;
-                            border-left: 7px solid transparent;
-                            border-right: 7px solid transparent;
-                            border-top: 10px solid {color};
+                            border-left: 10px solid transparent;
+                            border-right: 10px solid transparent;
+                            border-top: 13px solid {color};
                             margin: auto;
                         "></div>
                     </div>
@@ -664,14 +674,9 @@ def render_score_gauge(
                         "></span>
                         Higher score
                     </span>
-                    <span style="margin-left: auto;">
-                        White line = decision threshold
-                    </span>
                 </div>
             </div>
             """
-        ),
-        unsafe_allow_html=True,
     )
 
 def render_prediction(
@@ -700,44 +705,27 @@ def render_prediction(
         else "N/A"
     )
 
+    dynamic_color = score_color(float(probability), float(threshold))
+
     render_section_title(title)
 
-    st.markdown(
-        textwrap.dedent(
-            f"""
-            <div
-                class="result-card {card_class}"
-                role="region"
-                aria-label="{title}: {status}"
-            >
-                <div style="
-                    display: flex;
-                    justify-content: space-between;
-                    align-items: center;
-                    gap: 1.5rem;
-                    flex-wrap: wrap;
-                ">
-                    <div>
-                        <div class="metric-label">Decision</div>
-
-                        <div class="{status_class}">
-                            {status_icon} {status}
-                        </div>
-                    </div>
-                    <div style="text-align: right;">
-                        <div class="metric-label">
-                            Decision Threshold
-                        </div>
-
-                        <div class="metric-value">
-                            {threshold_text}
-                        </div>
+    render_safe_html(
+        f"""
+        <div class="result-card" style="border-left: 10px solid {dynamic_color};" role="region" aria-label="{title}: {status}">
+            
+            <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+                
+                <div>
+                    <div class="metric-label">Decision</div>
+                    <div style="color: {dynamic_color}; font-size: 1.4rem; font-weight: 600; text-align: center;">
+                        {status_icon} {status}
                     </div>
                 </div>
+
             </div>
-            """
-        ),
-        unsafe_allow_html=True,
+            
+        </div>
+        """
     )
 
     if is_numeric(probability) and is_numeric(threshold):
