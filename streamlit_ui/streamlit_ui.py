@@ -322,7 +322,8 @@ def flatten_customer_data(nested_data: dict) -> dict:
     return features
 
 
-def numeric_columns(table_data: dict) -> list"""Return editable numeric columns from one raw-data table."""
+def numeric_columns(table_data: dict) -> list:
+    """Return editable numeric columns from one raw-data table."""
     return sorted(
         column
         for column, value in table_data.items()
@@ -1302,14 +1303,6 @@ if customer_loaded:
         st.caption(
             f"Current value: `{format_value(original_value)}`"
         )
-
-        /*
-        The feature selector remains outside the form.
-
-        This is necessary because changing a widget inside a Streamlit form
-        does not immediately rerun the page. Keeping it outside allows the
-        editor below to switch directly between number_input and selectbox.
-        */
 
         if is_numeric(original_value):
             integer_value = isinstance(
