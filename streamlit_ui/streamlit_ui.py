@@ -13,12 +13,12 @@ import requests
 import streamlit as st
 import textwrap
 import re
-# from dotenv import load_dotenv
+from dotenv import load_dotenv
 
 # =============================================================================
 # Configuration
 # =============================================================================
-# load_dotenv()
+load_dotenv()
 API_URL = os.environ["API_URL"].rstrip("/")
 
 ID_COLUMNS = {
@@ -154,7 +154,17 @@ def get_prediction(sk_id: str) -> dict:
     """Get the original prediction."""
     response = requests.get(
         f"{API_URL}/predict/{sk_id}",
-        timeout=30,
+        timeout=90,
+    )
+
+    return check_response(response, "Prediction")
+
+def get_custom_prediction(sk_id: str, payload: dict) -> dict:
+    """Get the original prediction."""
+    response = requests.post(
+        f"{API_URL}/custom_predict/{sk_id}",
+        json=payload,
+        timeout=90,
     )
 
     return check_response(response, "Prediction")
@@ -164,7 +174,7 @@ def fetch_customer_data(sk_id: str) -> dict:
     """Fetch the customer's raw data."""
     response = requests.get(
         f"{API_URL}/explore/{sk_id}",
-        timeout=30,
+        timeout=90,
     )
 
     return check_response(response, "Customer data loading")
@@ -200,7 +210,7 @@ def get_simulated_prediction(
     response = requests.post(
         f"{API_URL}/custom_predict/{sk_id}",
         json=payload,
-        timeout=30,
+        timeout=90
     )
 
     return check_response(response, "Simulated prediction")
