@@ -1565,311 +1565,311 @@ if customer_loaded:
                     f"{customer_y:,.4g}"
                 )
 
-# -------------------------------------------------------------------------
-# What-if simulation
-# -------------------------------------------------------------------------
+    # -------------------------------------------------------------------------
+    # What-if simulation
+    # -------------------------------------------------------------------------
 
-render_section_title("What-if Simulation")
+    render_section_title("What-if Simulation")
 
-st.caption(
-    "Add one or more raw-data features, change their values and rerun the model."
-)
+    st.caption(
+        "Add one or more raw-data features, change their values and rerun the model."
+    )
 
-flattened_features = flatten_customer_data(customer_data)
+    flattened_features = flatten_customer_data(customer_data)
 
-if flattened_features:
-    feature_labels = sorted(flattened_features)
+    if flattened_features:
+        feature_labels = sorted(flattened_features)
 
-    # ---------------------------------------------------------------------
-    # Add field button
-    # ---------------------------------------------------------------------
-    add_col, clear_col = st.columns([1, 1])
+        # ---------------------------------------------------------------------
+        # Add field button
+        # ---------------------------------------------------------------------
+        add_col, clear_col = st.columns([1, 1])
 
-    with add_col:
-        if st.button(
-            "➕ Add field",
-            use_container_width=True,
-        ):
-            st.session_state["simulation_fields"].append(
-                {
-                    "feature": feature_labels[0],
-                }
-            )
-            st.rerun()
-
-    with clear_col:
-        if st.button(
-            "Clear Fields",
-            use_container_width=True,
-        ):
-            st.session_state["simulation_fields"] = []
-            st.session_state["simulated_prediction"] = None
-            st.session_state["simulation_details"] = None
-            st.rerun()
-
-    if not st.session_state["simulation_fields"]:
-        st.info("Click **Add field** to create a simulation scenario.")
-
-    # ---------------------------------------------------------------------
-    # Dynamic simulation fields
-    # ---------------------------------------------------------------------
-    for idx, field in enumerate(st.session_state["simulation_fields"]):
-        render_safe_html(
-            f"""
-            <div class="simulation-box">
-                <div class="metric-label">Simulation field {idx + 1}</div>
-            </div>
-            """
-        )
-
-        field_col, value_col, remove_col = st.columns([3, 2, 1])
-
-        with field_col:
-            selected_feature_label = st.selectbox(
-                "Raw-data feature",
-                options=feature_labels,
-                key=f"simulation_feature_{idx}",
-                help="Format: source table · column",
-            )
-
-        selected_feature = flattened_features[selected_feature_label]
-
-        selected_table = selected_feature["table"]
-        selected_column = selected_feature["column"]
-        original_value = selected_feature["value"]
-
-        with value_col:
-            if is_numeric(original_value):
-                integer_value = isinstance(
-                    original_value,
-                    (int, np.integer),
-                )
-
-                if integer_value:
-                    st.number_input(
-                        "New value",
-                        value=int(original_value),
-                        step=1,
-                        key=f"simulation_value_{idx}",
-                    )
-                else:
-                    st.number_input(
-                        "New value",
-                        value=float(original_value),
-                        format="%.8f",
-                        key=f"simulation_value_{idx}",
-                    )
-
-            else:
-                possible_values = fetch_categorical_values(
-                    selected_table,
-                    selected_column,
-                )
-
-                if original_value not in possible_values:
-                    possible_values.insert(0, original_value)
-
-                possible_values = list(dict.fromkeys(possible_values))
-
-                if possible_values:
-                    st.selectbox(
-                        "New value",
-                        options=possible_values,
-                        index=possible_values.index(original_value),
-                        format_func=format_value,
-                        key=f"simulation_value_{idx}",
-                    )
-                else:
-                    st.text_input(
-                        "New value",
-                        value=format_value(original_value),
-                        key=f"simulation_value_{idx}",
-                    )
-
-        with remove_col:
-            st.write("")
-            st.write("")
-
+        with add_col:
             if st.button(
-                "Remove",
-                key=f"remove_simulation_field_{idx}",
+                "Add field",
                 use_container_width=True,
             ):
-                st.session_state["simulation_fields"].pop(idx)
+                st.session_state["simulation_fields"].append(
+                    {
+                        "feature": feature_labels[0],
+                    }
+                )
                 st.rerun()
 
-        st.caption(
-            f"Current value for **{selected_table} · {selected_column}**: "
-            f"`{format_value(original_value)}`"
-        )
+        with clear_col:
+            if st.button(
+                "Clear Fields",
+                use_container_width=True,
+            ):
+                st.session_state["simulation_fields"] = []
+                st.session_state["simulated_prediction"] = None
+                st.session_state["simulation_details"] = None
+                st.rerun()
 
-    # ---------------------------------------------------------------------
-    # Run multi-field simulation
-    # ---------------------------------------------------------------------
-    if st.session_state["simulation_fields"]:
-        if st.button(
-            "Run Simulated Prediction",
-            type="primary",
-            use_container_width=True,
-        ):
-            payload = {
-                "overrides": {}
-            }
+        if not st.session_state["simulation_fields"]:
+            st.info("Click **Add field** to create a simulation scenario.")
 
-            simulation_details = []
+        # ---------------------------------------------------------------------
+        # Dynamic simulation fields
+        # ---------------------------------------------------------------------
+        for idx, field in enumerate(st.session_state["simulation_fields"]):
+            render_safe_html(
+                f"""
+                <div class="simulation-box">
+                    <div class="metric-label">Simulation field {idx + 1}</div>
+                </div>
+                """
+            )
 
-            for idx, _ in enumerate(st.session_state["simulation_fields"]):
-                feature_label = st.session_state.get(
-                    f"simulation_feature_{idx}"
+            field_col, value_col, remove_col = st.columns([3, 2, 1])
+
+            with field_col:
+                selected_feature_label = st.selectbox(
+                    "Raw-data feature",
+                    options=feature_labels,
+                    key=f"simulation_feature_{idx}",
+                    help="Format: source table · column",
                 )
 
-                if not feature_label:
-                    continue
+            selected_feature = flattened_features[selected_feature_label]
 
-                feature = flattened_features[feature_label]
+            selected_table = selected_feature["table"]
+            selected_column = selected_feature["column"]
+            original_value = selected_feature["value"]
 
-                table = feature["table"]
-                column = feature["column"]
-                original_value = feature["value"]
+            with value_col:
+                if is_numeric(original_value):
+                    integer_value = isinstance(
+                        original_value,
+                        (int, np.integer),
+                    )
 
-                simulated_value = st.session_state.get(
-                    f"simulation_value_{idx}"
+                    if integer_value:
+                        st.number_input(
+                            "New value",
+                            value=int(original_value),
+                            step=1,
+                            key=f"simulation_value_{idx}",
+                        )
+                    else:
+                        st.number_input(
+                            "New value",
+                            value=float(original_value),
+                            format="%.8f",
+                            key=f"simulation_value_{idx}",
+                        )
+
+                else:
+                    possible_values = fetch_categorical_values(
+                        selected_table,
+                        selected_column,
+                    )
+
+                    if original_value not in possible_values:
+                        possible_values.insert(0, original_value)
+
+                    possible_values = list(dict.fromkeys(possible_values))
+
+                    if possible_values:
+                        st.selectbox(
+                            "New value",
+                            options=possible_values,
+                            index=possible_values.index(original_value),
+                            format_func=format_value,
+                            key=f"simulation_value_{idx}",
+                        )
+                    else:
+                        st.text_input(
+                            "New value",
+                            value=format_value(original_value),
+                            key=f"simulation_value_{idx}",
+                        )
+
+            with remove_col:
+                st.write("")
+                st.write("")
+
+                if st.button(
+                    "Remove",
+                    key=f"remove_simulation_field_{idx}",
+                    use_container_width=True,
+                ):
+                    st.session_state["simulation_fields"].pop(idx)
+                    st.rerun()
+
+            st.caption(
+                f"Current value for **{selected_table} · {selected_column}**: "
+                f"`{format_value(original_value)}`"
+            )
+
+        # ---------------------------------------------------------------------
+        # Run multi-field simulation
+        # ---------------------------------------------------------------------
+        if st.session_state["simulation_fields"]:
+            if st.button(
+                "Run Simulated Prediction",
+                type="primary",
+                use_container_width=True,
+            ):
+                payload = {
+                    "overrides": {}
+                }
+
+                simulation_details = []
+
+                for idx, _ in enumerate(st.session_state["simulation_fields"]):
+                    feature_label = st.session_state.get(
+                        f"simulation_feature_{idx}"
+                    )
+
+                    if not feature_label:
+                        continue
+
+                    feature = flattened_features[feature_label]
+
+                    table = feature["table"]
+                    column = feature["column"]
+                    original_value = feature["value"]
+
+                    simulated_value = st.session_state.get(
+                        f"simulation_value_{idx}"
+                    )
+
+                    payload["overrides"].setdefault(table, {})
+                    payload["overrides"][table][column] = simulated_value
+
+                    simulation_details.append(
+                        {
+                            "table": table,
+                            "column": column,
+                            "original_value": original_value,
+                            "simulated_value": simulated_value,
+                        }
+                    )
+
+                if not payload["overrides"]:
+                    st.warning("No valid simulation field was provided.")
+
+                else:
+                    with st.spinner("Running simulated prediction…"):
+                        try:
+                            simulated_prediction = get_custom_prediction(
+                                customer_id,
+                                payload,
+                            )
+
+                            st.session_state[
+                                "simulated_prediction"
+                            ] = simulated_prediction
+
+                            st.session_state[
+                                "simulation_details"
+                            ] = simulation_details
+
+                        except ValueError as exc:
+                            st.error(str(exc))
+
+                        except RuntimeError as exc:
+                            st.error(str(exc))
+
+                        except requests.exceptions.Timeout:
+                            st.error(
+                                "The simulated prediction timed out."
+                            )
+
+                        except requests.exceptions.RequestException as exc:
+                            st.error(
+                                f"Could not connect to the API: {exc}"
+                            )
+
+        # ---------------------------------------------------------------------
+        # Simulated result
+        # ---------------------------------------------------------------------
+        simulated_prediction = st.session_state["simulated_prediction"]
+        simulation_details = st.session_state["simulation_details"]
+
+        if simulated_prediction and simulation_details:
+            st.markdown("---")
+
+            render_section_title("Simulation Comparison")
+
+            original_probability = prediction.get("probability")
+            simulated_probability = simulated_prediction.get("probability")
+
+            comparison_1, comparison_2, comparison_3 = st.columns(3)
+
+            comparison_1.metric(
+                "Original Score",
+                (
+                    f"{original_probability:.4f}"
+                    if is_numeric(original_probability)
+                    else "N/A"
+                ),
+            )
+
+            comparison_2.metric(
+                "Simulated Score",
+                (
+                    f"{simulated_probability:.4f}"
+                    if is_numeric(simulated_probability)
+                    else "N/A"
+                ),
+            )
+
+            if (
+                is_numeric(original_probability)
+                and is_numeric(simulated_probability)
+            ):
+                comparison_3.metric(
+                    "Score Variation",
+                    f"{simulated_probability - original_probability:+.4f}",
+                )
+            else:
+                comparison_3.metric(
+                    "Score Variation",
+                    "N/A",
                 )
 
-                payload["overrides"].setdefault(table, {})
-                payload["overrides"][table][column] = simulated_value
+            st.markdown("### Modified features")
 
-                simulation_details.append(
+            modified_rows = []
+
+            for detail in simulation_details:
+                modified_rows.append(
                     {
-                        "table": table,
-                        "column": column,
-                        "original_value": original_value,
-                        "simulated_value": simulated_value,
+                        "Table": detail["table"],
+                        "Feature": detail["column"],
+                        "Original value": format_value(
+                            detail["original_value"]
+                        ),
+                        "Simulated value": format_value(
+                            detail["simulated_value"]
+                        ),
                     }
                 )
 
-            if not payload["overrides"]:
-                st.warning("No valid simulation field was provided.")
-
-            else:
-                with st.spinner("Running simulated prediction…"):
-                    try:
-                        simulated_prediction = get_custom_prediction(
-                            customer_id,
-                            payload,
-                        )
-
-                        st.session_state[
-                            "simulated_prediction"
-                        ] = simulated_prediction
-
-                        st.session_state[
-                            "simulation_details"
-                        ] = simulation_details
-
-                    except ValueError as exc:
-                        st.error(str(exc))
-
-                    except RuntimeError as exc:
-                        st.error(str(exc))
-
-                    except requests.exceptions.Timeout:
-                        st.error(
-                            "The simulated prediction timed out."
-                        )
-
-                    except requests.exceptions.RequestException as exc:
-                        st.error(
-                            f"Could not connect to the API: {exc}"
-                        )
-
-    # ---------------------------------------------------------------------
-    # Simulated result
-    # ---------------------------------------------------------------------
-    simulated_prediction = st.session_state["simulated_prediction"]
-    simulation_details = st.session_state["simulation_details"]
-
-    if simulated_prediction and simulation_details:
-        st.markdown("---")
-
-        render_section_title("Simulation Comparison")
-
-        original_probability = prediction.get("probability")
-        simulated_probability = simulated_prediction.get("probability")
-
-        comparison_1, comparison_2, comparison_3 = st.columns(3)
-
-        comparison_1.metric(
-            "Original Score",
-            (
-                f"{original_probability:.4f}"
-                if is_numeric(original_probability)
-                else "N/A"
-            ),
-        )
-
-        comparison_2.metric(
-            "Simulated Score",
-            (
-                f"{simulated_probability:.4f}"
-                if is_numeric(simulated_probability)
-                else "N/A"
-            ),
-        )
-
-        if (
-            is_numeric(original_probability)
-            and is_numeric(simulated_probability)
-        ):
-            comparison_3.metric(
-                "Score Variation",
-                f"{simulated_probability - original_probability:+.4f}",
-            )
-        else:
-            comparison_3.metric(
-                "Score Variation",
-                "N/A",
+            st.dataframe(
+                pd.DataFrame(modified_rows),
+                use_container_width=True,
+                hide_index=True,
             )
 
-        st.markdown("### Modified features")
-
-        modified_rows = []
-
-        for detail in simulation_details:
-            modified_rows.append(
-                {
-                    "Table": detail["table"],
-                    "Feature": detail["column"],
-                    "Original value": format_value(
-                        detail["original_value"]
-                    ),
-                    "Simulated value": format_value(
-                        detail["simulated_value"]
-                    ),
-                }
+            render_prediction(
+                simulated_prediction,
+                title="Simulated Prediction Result",
+                show_explanations=True,
             )
 
-        st.dataframe(
-            pd.DataFrame(modified_rows),
-            use_container_width=True,
-            hide_index=True,
-        )
+            if st.button(
+                "Clear Simulation",
+                use_container_width=True,
+            ):
+                st.session_state["simulated_prediction"] = None
+                st.session_state["simulation_details"] = None
+                st.rerun()
 
-        render_prediction(
-            simulated_prediction,
-            title="Simulated Prediction Result",
-            show_explanations=True,
-        )
-
-        if st.button(
-            "Clear Simulation",
-            use_container_width=True,
-        ):
-            st.session_state["simulated_prediction"] = None
-            st.session_state["simulation_details"] = None
-            st.rerun()
-
-else:
-    st.info("No editable raw-data features are available.")
+    else:
+        st.info("No editable raw-data features are available.")
 
 st.divider()
