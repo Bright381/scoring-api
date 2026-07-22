@@ -180,40 +180,64 @@ def fetch_customer_data(sk_id: str) -> dict:
     return check_response(response, "Customer data loading")
 
 
-def get_simulated_prediction(
-    sk_id: str,
-    table: str,
-    column: str,
-    value: Any,
-) -> dict:
-    """
-    Run a simulated prediction with modified raw-data features.
+# def get_simulated_prediction(
+#     sk_id: str,
+#     table: str,
+#     column: str,
+#     value: Any,
+# ) -> dict:
+#     """
+#     Run a simulated prediction with modified raw-data features.
 
-    Expected request body:
+#     Expected request body:
+#     {
+#       "overrides": {
+#         "application": {
+#           "AMT_CREDIT": 400000,
+#           "AMT_ANNUITY": 25000,
+#           "AMT_INCOME_TOTAL": 180000
+#         },
+#         "bureau": {
+#           "DAYS_CREDIT": -1000
+#         }
+#       }
+#     }
+#     """
+#     payload = {
+#         "overrides": {}
+#     }
 
-    {
-        "overrides": {
-            "application": {
-                "AMT_CREDIT": 250000
-            }
-        }
-    }
-    """
-    payload = {
-        "overrides": {
-            table: {
-                column: value,
-            }
-        }
-    }
+#     for idx in range(len(st.session_state["simulation_fields"])):
+    
+#         feature_label = st.session_state[
+#             f"feature_{idx}"
+#         ]
+    
+#         feature = flattened_features[
+#             feature_label
+#         ]
+    
+#         table = feature["table"]
+#         column = feature["column"]
+    
+#         value = st.session_state[
+#             f"value_{idx}"
+#         ]
+    
+#         payload["overrides"].setdefault(
+#             table,
+#             {}
+#         )
+    
+#         payload["overrides"][table][column] = value
 
-    response = requests.post(
-        f"{API_URL}/custom_predict/{sk_id}",
-        json=payload,
-        timeout=90
-    )
+#     response = requests.post(
+#         f"{API_URL}/custom_predict/{sk_id}",
+#         json=payload,
+#         timeout=90
+#     )
 
-    return check_response(response, "Simulated prediction")
+#     return check_response(response, "Simulated prediction")
 
 
 @st.cache_data(show_spinner=False, ttl=3600)
@@ -1093,6 +1117,7 @@ for key, default_value in {
     "current_sk_id": None,
     "prediction": None,
     "customer_data": None,
+    "simulation_fields": [],
     "simulated_prediction": None,
     "simulation_details": None,
     "distribution_cache": {},
@@ -1107,6 +1132,7 @@ def clear_customer_state() -> None:
     """Clear state associated with the current customer."""
     st.session_state["prediction"] = None
     st.session_state["customer_data"] = None
+    st.session_state["simulation_fields"] = []
     st.session_state["simulated_prediction"] = None
     st.session_state["simulation_details"] = None
     st.session_state["distribution_cache"] = {}
@@ -1553,13 +1579,61 @@ if customer_loaded:
 
     if flattened_features:
         feature_labels = sorted(flattened_features)
-
-        selected_feature_label = st.selectbox(
-            "Raw-data feature",
-            options=feature_labels,
-            key="simulation_feature",
-            help="Format: source table · column",
+        
+    if st.button("Add field"):
+        st.session_state["simulation_fields"].append(
+            {
+                "feature": None,
+                "value": None,
+            }
         )
+
+    if st.button(
+        f"Remove field {idx}",
+        key=f"remove_{idx}"
+    ):
+        st.session_state["simulation_fields"].pop(idx)
+        st.rerun()
+
+    for idx, field in enumerate(
+        st.session_state["simulation_fields"]
+    ):
+    
+        st.markdown(f"### Field {idx + 1}")
+    
+        selected_feature_label = st.selectbox(
+            "Feature",
+            options=feature_labels,
+            key=f"feature_{idx}"
+        )
+    
+        selected_feature = flattened_features[
+            selected_feature_label
+        ]
+    
+        original_value = selected_feature["value"]
+    
+        if is_numeric(original_value):
+    
+            new_value = st.number_input(
+                "New value",
+                value=float(original_value),
+                key=f"value_{idx}"
+            )
+    
+        else:
+    
+            values = fetch_categorical_values(
+                selected_feature["table"],
+                selected_feature["column"],
+            )
+    
+            new_value = st.selectbox(
+                "New value",
+                options=values,
+                key=f"value_{idx}"
+            )
+
 
         selected_feature = flattened_features[
             selected_feature_label
@@ -1637,7 +1711,7 @@ if customer_loaded:
             with st.spinner("Running simulated prediction…"):
                 try:
                     simulated_prediction = (
-                        get_simulated_prediction(
+                        get_custom_prediction(
                             customer_id,
                             selected_table,
                             selected_column,
