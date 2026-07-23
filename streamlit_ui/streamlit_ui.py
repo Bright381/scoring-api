@@ -1607,20 +1607,10 @@ if customer_loaded:
                 st.session_state["simulation_details"] = None
                 st.rerun()
 
-        if not st.session_state["simulation_fields"]:
-            st.info("Click **Add field** to create a simulation scenario.")
-
         # ---------------------------------------------------------------------
         # Dynamic simulation fields
         # ---------------------------------------------------------------------
         for idx, field in enumerate(st.session_state["simulation_fields"]):
-            render_safe_html(
-                f"""
-                <div class="simulation-box">
-                    <div class="metric-label">Simulation field {idx + 1}</div>
-                </div>
-                """
-            )
 
             field_col, value_col, remove_col = st.columns([3, 2, 1])
 
