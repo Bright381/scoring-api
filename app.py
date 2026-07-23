@@ -73,7 +73,61 @@ def predict(sk_id: int):
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=traceback.format_exc())
-    
+
+
+@app.get("/feature-values/{table}")
+def get_feature_values(
+    table: str,
+    column: str = Query(..., description="Column name")
+):
+    """
+    Return all distinct values for a column.
+
+    Example response:
+    {
+        "values": [
+            "Cash loans",
+            "Revolving loans"
+        ]
+    }
+    """
+
+    if table not in TABLES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unknown table '{table}'."
+        )
+
+    try:
+        df = TABLES[table]
+
+        if column not in df.columns:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Column '{column}' not found in table '{table}'."
+            )
+
+        values = (
+            df[column]
+            .dropna()
+            .unique()
+            .tolist()
+        )
+
+        values = sorted(
+            cleaned_values,
+            key=lambda x: str(x)
+        )
+
+        return {"values": values}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=str(e)
+        )
 
 class FeatureOverrides(BaseModel):
     overrides: Dict[str, Any] = Field(default_factory=dict)
