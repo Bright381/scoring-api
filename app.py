@@ -115,7 +115,7 @@ def get_feature_values(
         )
 
         values = sorted(
-            cleaned_values,
+            values,
             key=lambda x: str(x)
         )
 
