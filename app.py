@@ -100,13 +100,7 @@ def get_feature_values(
 
     try:
         values = fetch_unique_values(table, column)
-
-        values = sorted(
-            values,
-            key=lambda x: str(x)
-        )
-
-        return {"values": values}
+        return values
 
     except HTTPException:
         raise
