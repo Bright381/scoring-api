@@ -38,6 +38,17 @@ def get_table_columns(table: str) -> list:
 
 TABLES = get_table_names()
 
+def fetch_unique_values(table: str, column: str):
+    with psycopg.connect(DB_URL) as conn:
+        with conn.cursor() as cur:
+            cur.execute(f"""
+                SELECT DISTINCT({column})
+                FROM {table}
+                ;"""
+            )
+            values=cur.fetchall()
+    return [v[0] for v in values]
+
 def try_numeric(col):
     if col.dtype != object:
         return col  # already numeric, skip
