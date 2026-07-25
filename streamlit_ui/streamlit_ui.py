@@ -954,6 +954,7 @@ def plot_bivariate(
     data: dict,
 ) -> plt.Figure:
     """Create a bivariate population scatter plot."""
+
     figure, axis = plt.subplots(
         figsize=(6, 4),
         facecolor="#161b22",
@@ -961,20 +962,69 @@ def plot_bivariate(
 
     axis.set_facecolor("#0d1117")
 
-    population_x = data.get("pop_x", [])
-    population_y = data.get("pop_y", [])
+    population_x = np.asarray(data.get("pop_x", []))
+    population_y = np.asarray(data.get("pop_y", []))
+
+    target = data.get("TARGET")
 
     if len(population_x) and len(population_y):
-        axis.scatter(
-            population_x,
-            population_y,
-            color="#2d6cdf",
-            alpha=0.35,
-            s=14,
-            edgecolor="none",
-            label="Population",
-            zorder=2,
-        )
+
+        # TARGET available, color by class
+        if target is not None and len(target) == len(population_x):
+
+            target = np.asarray(target, dtype=object)
+
+            mask_0 = (target == 0)
+            mask_1 = (target == 1)
+            mask_missing = pd.isna(target)
+
+            if np.any(mask_0):
+                axis.scatter(
+                    population_x[mask_0],
+                    population_y[mask_0],
+                    color="#f85149",
+                    alpha=0.35,
+                    s=14,
+                    edgecolor="none",
+                    label="TARGET = 0",
+                    zorder=2,
+                )
+
+            if np.any(mask_1):
+                axis.scatter(
+                    population_x[mask_1],
+                    population_y[mask_1],
+                    color="#2ea043",
+                    alpha=0.35,
+                    s=14,
+                    edgecolor="none",
+                    label="TARGET = 1",
+                    zorder=2,
+                )
+
+            if np.any(mask_missing):
+                axis.scatter(
+                    population_x[mask_missing],
+                    population_y[mask_missing],
+                    color="#2d6cdf",
+                    alpha=0.35,
+                    s=14,
+                    edgecolor="none",
+                    label="TARGET missing",
+                    zorder=2,
+                )
+
+        else:
+            axis.scatter(
+                population_x,
+                population_y,
+                color="#2d6cdf",
+                alpha=0.35,
+                s=14,
+                edgecolor="none",
+                label="Population",
+                zorder=2,
+            )
 
     customer_x = data.get("customer_x")
     customer_y = data.get("customer_y")
@@ -983,11 +1033,11 @@ def plot_bivariate(
         axis.scatter(
             customer_x,
             customer_y,
-            color="#f85149",
+            color="#ffffff",
             s=110,
             marker="X",
-            edgecolor="#ffffff",
-            linewidth=0.9,
+            edgecolor="#000000",
+            linewidth=1.2,
             label="Customer",
             zorder=5,
         )
