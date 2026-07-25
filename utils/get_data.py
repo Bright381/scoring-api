@@ -47,7 +47,7 @@ def fetch_unique_values(table: str, column: str):
                 ;"""
             )
             values=cur.fetchall()
-    return [v[0] for v in values]
+    return {'values': [v[0] for v in values]}
 
 def try_numeric(col):
     if col.dtype != object:
