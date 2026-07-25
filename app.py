@@ -7,7 +7,7 @@ import pandas as pd
 import numpy as np
 import base64
 from utils.get_data import (
-    get_preprocessed_features,
+    fetch_unique_values,
     get_raw_tables_dic,
     TABLES,
     get_column_stats
@@ -99,20 +99,7 @@ def get_feature_values(
         )
 
     try:
-        df = TABLES[table]
-
-        if column not in df.columns:
-            raise HTTPException(
-                status_code=404,
-                detail=f"Column '{column}' not found in table '{table}'."
-            )
-
-        values = (
-            df[column]
-            .dropna()
-            .unique()
-            .tolist()
-        )
+        values = fetch_unique_values(table, column)
 
         values = sorted(
             values,
