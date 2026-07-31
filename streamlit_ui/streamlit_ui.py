@@ -814,13 +814,24 @@ def plot_distribution(
     distribution: dict,
 ) -> plt.Figure:
     """Create a dark-themed distribution chart."""
+
     bin_edges = np.asarray(
         distribution.get("bin_edges", []),
         dtype=float,
     )
 
-    counts = np.asarray(
-        distribution.get("counts", []),
+    count_target_0 = np.asarray(
+        distribution.get("count_target_0", []),
+        dtype=float,
+    )
+
+    count_target_1 = np.asarray(
+        distribution.get("count_target_1", []),
+        dtype=float,
+    )
+
+    count_target_na = np.asarray(
+        distribution.get("count_target_na", []),
         dtype=float,
     )
 
@@ -831,19 +842,52 @@ def plot_distribution(
 
     axis.set_facecolor("#0d1117")
 
-    if len(bin_edges) >= 2 and len(counts) == len(bin_edges) - 1:
+    valid_histogram = (
+        len(bin_edges) >= 2
+        and len(count_target_0) == len(bin_edges) - 1
+        and len(count_target_1) == len(bin_edges) - 1
+        and len(count_target_na) == len(bin_edges) - 1
+    )
+
+    if valid_histogram:
         centers = (bin_edges[:-1] + bin_edges[1:]) / 2
         widths = np.diff(bin_edges)
 
         axis.bar(
             centers,
-            counts,
+            count_target_0,
             width=widths * 0.92,
-            color="#2d6cdf",
-            alpha=0.75,
+            color="#f85149",
+            alpha=0.8,
             edgecolor="none",
+            label="TARGET = 0",
             zorder=2,
         )
+
+        axis.bar(
+            centers,
+            count_target_1,
+            width=widths * 0.92,
+            bottom=count_target_0,
+            color="#2ea043",
+            alpha=0.8,
+            edgecolor="none",
+            label="TARGET = 1",
+            zorder=2,
+        )
+
+        axis.bar(
+            centers,
+            count_target_na,
+            width=widths * 0.92,
+            bottom=count_target_0 + count_target_1,
+            color="#2d6cdf",
+            alpha=0.8,
+            edgecolor="none",
+            label="TARGET = NA",
+            zorder=2,
+        )
+
     else:
         axis.text(
             0.5,
@@ -860,7 +904,7 @@ def plot_distribution(
     if is_numeric(customer_value):
         axis.axvline(
             customer_value,
-            color="#f85149",
+            color="#ffffff",
             linewidth=2,
             label=f"Customer: {customer_value:,.4g}",
             zorder=5,
