@@ -38,6 +38,15 @@ def get_table_columns(table: str) -> list:
 
 TABLES = get_table_names()
 
+def fetch_target(sk_id: int):
+    query=f"SELECT 'TARGET' FROM application_test WHERE 'SK_ID_CURR'=={sk_id};"
+    with psycopg.connect(DB_URL) as conn:
+        with conn.cursor() as cur:
+            cur.execute(query            )
+            target=cur.fetchall()
+    return {'TARGET': target[0]}
+    
+
 def fetch_unique_values(table: str, column: str):
     with psycopg.connect(DB_URL) as conn:
         with conn.cursor() as cur:
@@ -97,11 +106,7 @@ def fetch_table_rows(sk_id: int, table: str) -> pd.DataFrame:
                 if not rows:
                     return pd.DataFrame(columns=[c for c in cols if c != 'TARGET'])
                 
-                df = pd.DataFrame(rows, columns=cols)
-                
-                if 'TARGET' in df.columns:
-                    df = df.drop(columns=['TARGET'])
-                
+                df = pd.DataFrame(rows, columns=cols)                
                 df = df.apply(try_numeric)
     
     except Exception as e:
