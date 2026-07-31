@@ -259,7 +259,7 @@ def fetch_categorical_values(table: str, column: str) -> list:
         response = requests.get(
             f"{API_URL}/feature-values/{table}",
             params={"column": column},
-            timeout=15,
+            timeout=30,
         )
 
         if response.status_code != 200:
@@ -1136,7 +1136,7 @@ def fetch_distributions(
                     "column": column,
                     "sk_id": sk_id,
                 },
-                timeout=15,
+                timeout=30,
             )
 
             if response.status_code != 200:
@@ -1155,6 +1155,24 @@ def fetch_distributions(
             st.warning(
                 f"Distribution request failed for {column}: {exc}"
             )
+
+    try:
+        response = requests.get(
+            f"{API_URL}/whatever-endpoint/application_test",
+            params={
+                "column": "TARGET",
+                "sk_id": sk_id,
+            },
+            timeout=30,
+        )
+    
+        if response.status_code == 200:
+            distributions["TARGET"] = response.json()
+        else:
+            pass
+    
+    except requests.exceptions.RequestException as exc:
+        pass
 
     return distributions
 
