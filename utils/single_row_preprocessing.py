@@ -43,7 +43,7 @@ def one_hot_encoder(df: pd.DataFrame, name: str, sk_id):
         df = pd.concat([df.drop(columns=categorical_columns), encoded_df], axis=1)
         return df, list(encoded_df.columns)
     
-    print(f'skipped ohe for {name}', flush=True)
+    # print(f'skipped ohe for {name}', flush=True)
     return df, []
 
 # mapping for binary categorical variables
@@ -286,15 +286,26 @@ def preprocess(tables_dic: dict, sk_id) -> pd.DataFrame:
 def apply_custom_values(tables_dic: dict, overrides: dict) -> dict:
     """
     Take a dictionary tables_dic of dataframes, or dictionaries, with the
-    original data, and a dictionary overrides of values to edit {'column': value}.
+    original data, and a dictionary overrides of values to edit.
+    Format of overrides: {'table_name': {'column_name': value}}
     Return a dictionary in the same format as tables_dic.
     """
-    if overrides is None:
+    if not overrides:
         return tables_dic
 
-    for table_name, table in tables_dic.items():
-        for col, v in overrides.items():
-            if col in table.columns:
-                table[col]=v
-        tables_dic[table_name]=table
+    for table_name, columns_to_modify in overrides.items():
+        
+        if table_name in tables_dic:
+            table = tables_dic[table_name]
+            
+            for col_name, new_val in columns_to_modify.items():
+
+                if hasattr(table, "columns"):
+                    if col_name in table.columns:
+                        table[col_name] = new_val
+                        
+                elif isinstance(table, dict):
+                    if col_name in table:
+                        table[col_name] = new_val
+
     return tables_dic
