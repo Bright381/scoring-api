@@ -10,7 +10,8 @@ from utils.get_data import (
     fetch_unique_values,
     get_raw_tables_dic,
     TABLES,
-    get_column_stats
+    get_column_stats,
+    fetch_target
 )
 from utils.get_shap import get_importances, plot
 from utils.single_row_preprocessing import preprocess, apply_custom_values
@@ -34,6 +35,10 @@ with open("api_model_info/lgbm_importances.png", "rb") as image_file:
 def running():
     return "API is running."
 
+@app.get("/get_target/sk_id")
+def get_target(sk_id: int):
+    return fetch_target(sk_id)
+    
 @app.get("/predict/{sk_id}")
 def predict(sk_id: int):
     try:
