@@ -1155,6 +1155,7 @@ def fetch_distributions(
     columns: list[str],
 ) -> dict:
     """Fetch and cache population distributions."""
+
     cache = st.session_state.setdefault(
         "distribution_cache",
         {},
@@ -1202,24 +1203,36 @@ def fetch_distributions(
 
     try:
         response = requests.get(
-            f"{API_URL}/whatever-endpoint/application_test",
-            params={
-                "column": "TARGET",
-                "sk_id": sk_id,
-            },
-            timeout=30,
+            f"{API_URL}/get_target/sk_id"
         )
-    
+
         if response.status_code == 200:
-            distributions["TARGET"] = response.json()
-        else:
-            pass
-    
-    except requests.exceptions.RequestException as exc:
+            target_values = response.json()
+
+            count_target_0 = sum(
+                value == 0
+                for value in target_values
+            )
+
+            count_target_1 = sum(
+                value == 1
+                for value in target_values
+            )
+
+            count_target_na = sum(
+                value is None
+                for value in target_values
+            )
+
+            for distribution in distributions.values():
+                distribution["count_target_0"] = count_target_0
+                distribution["count_target_1"] = count_target_1
+                distribution["count_target_na"] = count_target_na
+
+    except requests.exceptions.RequestException:
         pass
 
     return distributions
-
 
 # =============================================================================
 # Session state
