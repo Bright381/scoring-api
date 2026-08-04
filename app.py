@@ -11,7 +11,8 @@ from utils.get_data import (
     get_raw_tables_dic,
     TABLES,
     get_column_stats,
-    fetch_target
+    fetch_target,
+    fetch_population_targets,
 )
 from utils.get_shap import get_importances, plot
 from utils.single_row_preprocessing import preprocess, apply_custom_values
@@ -225,8 +226,28 @@ def distributions(
             status_code=404,
             detail=f"No data found for column '{column}' in table '{table}'.",
         )
- 
+  
     return stats
+
+@app.get("/population_targets/{table}")
+def population_targets(
+    table: str,
+    column: str = Query(..., description="Column name used to build the population sample"),
+    filter_col: str = Query(None, description="Optional column name to filter the baseline population by"),
+    filter_val: str = Query(None, description="Optional baseline column matching criterion value"),
+):
+    """Return the TARGET values for the population sample used to build distributions.
+
+    Response shape: {"targets": [0, 1, null, 0, ...]}
+    """
+    if table not in TABLES:
+        raise HTTPException(status_code=400, detail=f"Unknown table '{table}'.")
+
+    try:
+        targets = fetch_population_targets(table, column, filter_col, filter_val)
+        return {"targets": targets}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/bivariate/{table}")
 def bivariate_distribution(
