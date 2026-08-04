@@ -35,7 +35,7 @@ with open("api_model_info/lgbm_importances.png", "rb") as image_file:
 def running():
     return "API is running."
 
-@app.get("/get_target/sk_id")
+@app.get("/get_target/{sk_id}")
 def get_target(sk_id: int):
     return fetch_target(sk_id)
     
