@@ -1193,6 +1193,40 @@ def fetch_distributions(
 
             distribution = response.json()
 
+            # Try to fetch population TARGETs aligned with this column sample
+            try:
+                resp_targets = requests.get(
+                    f"{API_URL}/population_targets/{table}",
+                    params={"column": column},
+                    timeout=30,
+                )
+
+                if resp_targets.status_code == 200:
+                    target_values = resp_targets.json().get("targets", [])
+
+                    count_target_0 = sum(
+                        v == 0
+                        for v in target_values
+                    )
+
+                    count_target_1 = sum(
+                        v == 1
+                        for v in target_values
+                    )
+
+                    count_target_na = sum(
+                        v is None
+                        for v in target_values
+                    )
+
+                    distribution["count_target_0"] = count_target_0
+                    distribution["count_target_1"] = count_target_1
+                    distribution["count_target_na"] = count_target_na
+
+            except requests.exceptions.RequestException:
+                # If the population-target call fails, proceed without per-target counts
+                pass
+
             cache[cache_key] = distribution
             distributions[column] = distribution
 
@@ -1200,37 +1234,6 @@ def fetch_distributions(
             st.warning(
                 f"Distribution request failed for {column}: {exc}"
             )
-
-    try:
-        response = requests.get(
-            f"{API_URL}/get_target/sk_id"
-        )
-
-        if response.status_code == 200:
-            target_values = response.json()
-
-            count_target_0 = sum(
-                value == 0
-                for value in target_values
-            )
-
-            count_target_1 = sum(
-                value == 1
-                for value in target_values
-            )
-
-            count_target_na = sum(
-                value is None
-                for value in target_values
-            )
-
-            for distribution in distributions.values():
-                distribution["count_target_0"] = count_target_0
-                distribution["count_target_1"] = count_target_1
-                distribution["count_target_na"] = count_target_na
-
-    except requests.exceptions.RequestException:
-        pass
 
     return distributions
 
