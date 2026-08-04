@@ -3,7 +3,6 @@ import pandas as pd
 import numpy as np
 import os
 from typing import Any
-
 from utils.single_row_preprocessing import (
     preprocess,
     apply_custom_values
@@ -143,14 +142,14 @@ def get_column_stats(table: str, column: str, sk_id: int, filter_col: str = None
     """
     with psycopg.connect(DB_URL) as conn:
         with conn.cursor() as cur:
-            # 1. Customer value (first matching row)
+            # Customer value (first matching row)
             cur.execute(
                 f'SELECT "{column}" FROM "{table}" WHERE "SK_ID_CURR" = %s LIMIT 1',
                 (sk_id,)
             )
             cust_row = cur.fetchone()
  
-            # 2. Population sample (cap at 10k) with optional filtering
+            # Population sample (cap at 10k) with optional filtering
             base_where = f'"{column}" IS NOT NULL'
             params = []
             
@@ -207,9 +206,9 @@ def get_bivariate_data(table: str, col_x: str, col_y: str, sk_id: int, filter_co
     """
     with psycopg.connect(DB_URL) as conn:
         with conn.cursor() as cur:
-            # 1. Fetch Targeted Customer Coordinates
+            # Fetch Targeted Customer Coordinates
             if table != "bureau_balance":
-                cust_query = f'SELECT "{col_x}", "{col_y}" FROM "{table}" WHERE "SK_ID_CURR" = %s LIMIT 1'
+                cust_query = f'SELECT "{col_x}", "{col_y}" FROM "{table}" WHERE "SK_ID_CURR" = %s'
             else:
                 cust_query = f"""
                     SELECT "{col_x}", "{col_y}" FROM "{table}" 
@@ -220,7 +219,7 @@ def get_bivariate_data(table: str, col_x: str, col_y: str, sk_id: int, filter_co
             cur.execute(cust_query, (sk_id,))
             cust_row = cur.fetchone()
 
-            # 2. Build Population Sample Query with Optional Database Filtering
+            # Build Population Sample Query with Optional Database Filtering
             base_where = f'"{col_x}" IS NOT NULL AND "{col_y}" IS NOT NULL'
             params = []
             
@@ -228,7 +227,7 @@ def get_bivariate_data(table: str, col_x: str, col_y: str, sk_id: int, filter_co
                 base_where += f' AND "{filter_col}" = %s'
                 params.append(str(filter_val))
             
-            pop_query = f'SELECT "{col_x}", "{col_y}" FROM "{table}" WHERE {base_where} LIMIT 10000'
+            pop_query = f'SELECT "{col_x}", "{col_y}" FROM "{table}" WHERE {base_where}'
             cur.execute(pop_query, tuple(params))
             pop_rows = cur.fetchall()
 
