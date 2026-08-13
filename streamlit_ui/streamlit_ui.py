@@ -1193,39 +1193,45 @@ def fetch_distributions(
 
             distribution = response.json()
 
-            # Try to fetch population TARGETs aligned with this column sample
-            try:
-                resp_targets = requests.get(
-                    f"{API_URL}/population_targets/{table}",
-                    params={"column": column},
-                    timeout=30,
-                )
+            # If the backend already provided per-bin TARGET counts we keep them.
+            bin_edges = distribution.get("bin_edges")
+            existing_counts_ok = False
+            if isinstance(bin_edges, list) and len(bin_edges) >= 2:
+                expected_len = len(bin_edges) - 1
+                ct0 = distribution.get("count_target_0")
+                ct1 = distribution.get("count_target_1")
+                ctn = distribution.get("count_target_na")
+                if (
+                    isinstance(ct0, list) and isinstance(ct1, list) and isinstance(ctn, list)
+                    and len(ct0) == expected_len and len(ct1) == expected_len and len(ctn) == expected_len
+                ):
+                    existing_counts_ok = True
 
-                if resp_targets.status_code == 200:
-                    target_values = resp_targets.json().get("targets", [])
-
-                    count_target_0 = sum(
-                        v == 0
-                        for v in target_values
+            # Only attempt the legacy population_targets fallback when per-bin arrays are missing
+            if not existing_counts_ok:
+                try:
+                    resp_targets = requests.get(
+                        f"{API_URL}/population_targets/{table}",
+                        params={"column": column},
+                        timeout=30,
                     )
 
-                    count_target_1 = sum(
-                        v == 1
-                        for v in target_values
-                    )
+                    if resp_targets.status_code == 200:
+                        target_values = resp_targets.json().get("targets", [])
 
-                    count_target_na = sum(
-                        v is None
-                        for v in target_values
-                    )
+                        # Legacy fallback: population_targets returns raw targets (not per-bin). Compute totals
+                        # Note: this is a coarse fallback; prefer server-provided per-bin arrays.
+                        count_target_0 = sum(1 for v in target_values if v == 0)
+                        count_target_1 = sum(1 for v in target_values if v == 1)
+                        count_target_na = sum(1 for v in target_values if v is None)
 
-                    distribution["count_target_0"] = count_target_0
-                    distribution["count_target_1"] = count_target_1
-                    distribution["count_target_na"] = count_target_na
+                        distribution["count_target_0"] = count_target_0
+                        distribution["count_target_1"] = count_target_1
+                        distribution["count_target_na"] = count_target_na
 
-            except requests.exceptions.RequestException:
-                # If the population-target call fails, proceed without per-target counts
-                pass
+                except requests.exceptions.RequestException:
+                    # If the population-target call fails, proceed without per-target counts
+                    pass
 
             cache[cache_key] = distribution
             distributions[column] = distribution
