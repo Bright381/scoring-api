@@ -38,13 +38,40 @@ def get_table_columns(table: str) -> list:
 TABLES = get_table_names()
 
 def fetch_target(sk_id: int):
-    query=f"SELECT 'TARGET' FROM application_test WHERE 'SK_ID_CURR'=={sk_id};"
+    """Return the TARGET value for a specific SK_ID_CURR as a JSON-serializable dict.
+
+    Returns {"TARGET": 0|1|None}.
+    """
+    query = 'SELECT "TARGET" FROM application_test WHERE "SK_ID_CURR" = %s LIMIT 1'
     with psycopg.connect(DB_URL) as conn:
         with conn.cursor() as cur:
-            cur.execute(query            )
-            target=cur.fetchall()
-    return {'TARGET': target[0]}
-    
+            cur.execute(query, (sk_id,))
+            row = cur.fetchone()
+    return {"TARGET": (int(row[0]) if row is not None and row[0] is not None else None)}
+
+
+def fetch_population_targets(table: str, column: str, filter_col: str = None, filter_val: Any = None) -> list:
+    """Return a list of TARGET values for the population sample used to build distributions.
+
+    The list preserves ordering and contains 0, 1, or None for SQL NULLs. Caps at 10k rows to match distribution sampling.
+    """
+    if table not in TABLES:
+        raise ValueError(f"Unknown table '{table}'.")
+
+    with psycopg.connect(DB_URL) as conn:
+        with conn.cursor() as cur:
+            base_where = f'"{column}" IS NOT NULL'
+            params = []
+            if filter_col and filter_val is not None:
+                base_where += f' AND "{filter_col}" = %s'
+                params.append(str(filter_val))
+
+            query = f'SELECT "TARGET" FROM "{table}" WHERE {base_where} LIMIT 10000'
+            cur.execute(query, tuple(params))
+            rows = cur.fetchall()
+
+    # rows may contain tuples like (value,)
+    return [ (int(r[0]) if r[0] is not None else None) for r in rows ]
 
 def fetch_unique_values(table: str, column: str):
     with psycopg.connect(DB_URL) as conn:
@@ -142,14 +169,14 @@ def get_column_stats(table: str, column: str, sk_id: int, filter_col: str = None
     """
     with psycopg.connect(DB_URL) as conn:
         with conn.cursor() as cur:
-            # Customer value (first matching row)
+            # 1. Customer value (first matching row)
             cur.execute(
                 f'SELECT "{column}" FROM "{table}" WHERE "SK_ID_CURR" = %s LIMIT 1',
                 (sk_id,)
             )
             cust_row = cur.fetchone()
  
-            # Population sample (cap at 10k) with optional filtering
+            # 2. Population sample (cap at 10k) with optional filtering
             base_where = f'"{column}" IS NOT NULL'
             params = []
             
@@ -206,9 +233,9 @@ def get_bivariate_data(table: str, col_x: str, col_y: str, sk_id: int, filter_co
     """
     with psycopg.connect(DB_URL) as conn:
         with conn.cursor() as cur:
-            # Fetch Targeted Customer Coordinates
+            # 1. Fetch Targeted Customer Coordinates
             if table != "bureau_balance":
-                cust_query = f'SELECT "{col_x}", "{col_y}" FROM "{table}" WHERE "SK_ID_CURR" = %s'
+                cust_query = f'SELECT "{col_x}", "{col_y}" FROM "{table}" WHERE "SK_ID_CURR" = %s LIMIT 1'
             else:
                 cust_query = f"""
                     SELECT "{col_x}", "{col_y}" FROM "{table}" 
@@ -219,7 +246,7 @@ def get_bivariate_data(table: str, col_x: str, col_y: str, sk_id: int, filter_co
             cur.execute(cust_query, (sk_id,))
             cust_row = cur.fetchone()
 
-            # Build Population Sample Query with Optional Database Filtering
+            # 2. Build Population Sample Query with Optional Database Filtering
             base_where = f'"{col_x}" IS NOT NULL AND "{col_y}" IS NOT NULL'
             params = []
             
@@ -227,7 +254,7 @@ def get_bivariate_data(table: str, col_x: str, col_y: str, sk_id: int, filter_co
                 base_where += f' AND "{filter_col}" = %s'
                 params.append(str(filter_val))
             
-            pop_query = f'SELECT "{col_x}", "{col_y}" FROM "{table}" WHERE {base_where}'
+            pop_query = f'SELECT "{col_x}", "{col_y}", "TARGET" FROM "{table}" WHERE {base_where} LIMIT 10000'
             cur.execute(pop_query, tuple(params))
             pop_rows = cur.fetchall()
 
@@ -241,14 +268,18 @@ def get_bivariate_data(table: str, col_x: str, col_y: str, sk_id: int, filter_co
         except (TypeError, ValueError):
             pass
 
-    # Parse and decouple background population coordinates
+    # Parse and decouple background population coordinates and their TARGETs
     pop_x = []
     pop_y = []
+    pop_target = []
     for r in pop_rows:
+        # r expected: (col_x_value, col_y_value, target_value)
         if r[0] is not None and r[1] is not None:
             try:
                 pop_x.append(float(r[0]))
                 pop_y.append(float(r[1]))
+                # preserve None for SQL NULLs; if not None coerce to int when possible
+                pop_target.append(int(r[2]) if r[2] is not None else None)
             except (TypeError, ValueError):
                 continue
 
@@ -259,5 +290,6 @@ def get_bivariate_data(table: str, col_x: str, col_y: str, sk_id: int, filter_co
         "customer_y": customer_y,
         "pop_x": pop_x,
         "pop_y": pop_y,
+        "TARGET": pop_target,
         "n": len(pop_x)
     }
