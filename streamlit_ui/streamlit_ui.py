@@ -19,7 +19,8 @@ import re
 # Configuration
 # =============================================================================
 # load_dotenv()
-API_URL = os.environ["API_URL"].rstrip("/")
+# API_URL = os.environ["API_URL"].rstrip("/")
+API_URL="http://127.0.0.1:8000"
 
 ID_COLUMNS = {
     "SK_ID_CURR",
@@ -958,7 +959,7 @@ def plot_distribution(
     if handles:
         axis.legend(
             fontsize=9,
-            loc="upper left",
+            loc="best",
             facecolor="#161b22",
             edgecolor="#30363d",
             labelcolor="#c9d1d9",

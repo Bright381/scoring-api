@@ -42,7 +42,7 @@ def fetch_target(sk_id: int):
 
     Returns {"TARGET": 0|1|None}.
     """
-    query = 'SELECT "TARGET" FROM application_test WHERE "SK_ID_CURR" = %s LIMIT 1'
+    query = 'SELECT "TARGET" FROM application_test WHERE "SK_ID_CURR" = %s'
     with psycopg.connect(DB_URL) as conn:
         with conn.cursor() as cur:
             cur.execute(query, (sk_id,))
@@ -66,18 +66,17 @@ def fetch_population_targets(table: str, column: str, filter_col: str = None, fi
                 base_where += f' AND "{filter_col}" = %s'
                 params.append(str(filter_val))
 
-            query = f'SELECT "TARGET" FROM "{table}" WHERE {base_where} LIMIT 10000'
+            query = f'SELECT "TARGET" FROM "{table}" WHERE {base_where}'
             cur.execute(query, tuple(params))
             rows = cur.fetchall()
 
-    # rows may contain tuples like (value,)
-    return [ (int(r[0]) if r[0] is not None else None) for r in rows ]
+    return [(int(r[0]) if r[0] is not None else None) for r in rows]
 
 def fetch_unique_values(table: str, column: str):
     with psycopg.connect(DB_URL) as conn:
         with conn.cursor() as cur:
             cur.execute(f"""
-                SELECT DISTINCT({column})
+                SELECT DISTINCT "{column}"
                 FROM {table}
                 ;"""
             )
@@ -165,18 +164,17 @@ def get_preprocessed_features(sk_id) -> pd.DataFrame:
 def get_column_stats(table: str, column: str, sk_id: int, filter_col: str = None, filter_val: Any = None) -> dict:
     """
     Fetch population histogram data for a column and the customer's own value.
-    Now supports optional segment filtering.
+    Now supports optional segment filtering and correctly groups by TARGET.
     """
     with psycopg.connect(DB_URL) as conn:
         with conn.cursor() as cur:
             # 1. Customer value (first matching row)
             cur.execute(
-                f'SELECT "{column}" FROM "{table}" WHERE "SK_ID_CURR" = %s LIMIT 1',
+                f'SELECT "{column}" FROM "{table}" WHERE "SK_ID_CURR" = %s',
                 (sk_id,)
             )
             cust_row = cur.fetchone()
  
-            # 2. Population sample (cap at 10k) with optional filtering
             base_where = f'"{column}" IS NOT NULL'
             params = []
             
@@ -185,13 +183,14 @@ def get_column_stats(table: str, column: str, sk_id: int, filter_col: str = None
                 params.append(str(filter_val))
                 
             cur.execute(
-                f'SELECT "{column}" FROM "{table}" WHERE {base_where} LIMIT 10000',
+                f'SELECT "{column}" FROM "{table}" WHERE {base_where}',
                 tuple(params)
             )
             pop_rows = cur.fetchall()
  
-    population = np.array([r[0] for r in pop_rows if r[0] is not None], dtype=float)
-    population = population[~np.isnan(population)]
+    # Clean population and parse floats. Keep track of TARGETs.
+    valid_rows = [r for r in pop_rows if r[0] is not None]
+    population = np.array([r[0] for r in valid_rows], dtype=float)
  
     customer_val = None
     if cust_row is not None and cust_row[0] is not None:
@@ -202,11 +201,23 @@ def get_column_stats(table: str, column: str, sk_id: int, filter_col: str = None
  
     if population.size == 0:
         return {
-            "bin_edges": [], "counts": [], "customer_value": customer_val,
+            "bin_edges": [], "count_target_0": [], "count_target_1": [], "count_target_na": [],
+            "customer_value": customer_val,
             "percentile": None, "mean": None, "median": None, "std": None, "n": 0,
         }
  
-    counts, bin_edges = np.histogram(population, bins=30)
+    # Calculate overall bin edges
+    _, bin_edges = np.histogram(population, bins=30)
+    
+    # Separate populations by target class
+    pop_target_0 = np.array([r[0] for r in valid_rows if r[1] == 0], dtype=float)
+    pop_target_1 = np.array([r[0] for r in valid_rows if r[1] == 1], dtype=float)
+    pop_target_na = np.array([r[0] for r in valid_rows if r[1] is None], dtype=float)
+
+    # Compute per-target histograms
+    count_target_0, _ = np.histogram(pop_target_0, bins=bin_edges)
+    count_target_1, _ = np.histogram(pop_target_1, bins=bin_edges)
+    count_target_na, _ = np.histogram(pop_target_na, bins=bin_edges)
  
     percentile = None
     if customer_val is not None:
@@ -214,7 +225,9 @@ def get_column_stats(table: str, column: str, sk_id: int, filter_col: str = None
  
     return {
         "bin_edges": bin_edges.tolist(),
-        "counts": counts.tolist(),
+        "count_target_0": count_target_0.tolist(),
+        "count_target_1": count_target_1.tolist(),
+        "count_target_na": count_target_na.tolist(),
         "customer_value": customer_val,
         "percentile": round(percentile, 1) if percentile is not None else None,
         "mean": round(float(np.mean(population)), 4),
@@ -222,9 +235,6 @@ def get_column_stats(table: str, column: str, sk_id: int, filter_col: str = None
         "std": round(float(np.std(population)), 4),
         "n": int(population.size),
     }
- 
-
- ## for plots
 
 def get_bivariate_data(table: str, col_x: str, col_y: str, sk_id: int, filter_col: str = None, filter_val: Any = None) -> dict:
     """
@@ -233,20 +243,20 @@ def get_bivariate_data(table: str, col_x: str, col_y: str, sk_id: int, filter_co
     """
     with psycopg.connect(DB_URL) as conn:
         with conn.cursor() as cur:
-            # 1. Fetch Targeted Customer Coordinates
+            # Fetch Targeted Customer Coordinates
             if table != "bureau_balance":
-                cust_query = f'SELECT "{col_x}", "{col_y}" FROM "{table}" WHERE "SK_ID_CURR" = %s LIMIT 1'
+                cust_query = f'SELECT "{col_x}", "{col_y}" FROM "{table}" WHERE "SK_ID_CURR" = %s'
             else:
                 cust_query = f"""
                     SELECT "{col_x}", "{col_y}" FROM "{table}" 
                     WHERE "SK_ID_BUREAU" IN (
                         SELECT DISTINCT("SK_ID_BUREAU") FROM bureau WHERE "SK_ID_CURR" = %s
-                    ) LIMIT 1
+                    )
                 """
             cur.execute(cust_query, (sk_id,))
             cust_row = cur.fetchone()
 
-            # 2. Build Population Sample Query with Optional Database Filtering
+            # Build Population Sample Query with Optional Database Filtering
             base_where = f'"{col_x}" IS NOT NULL AND "{col_y}" IS NOT NULL'
             params = []
             
@@ -254,7 +264,7 @@ def get_bivariate_data(table: str, col_x: str, col_y: str, sk_id: int, filter_co
                 base_where += f' AND "{filter_col}" = %s'
                 params.append(str(filter_val))
             
-            pop_query = f'SELECT "{col_x}", "{col_y}", "TARGET" FROM "{table}" WHERE {base_where} LIMIT 10000'
+            pop_query = f'SELECT "{col_x}", "{col_y}", "TARGET" FROM "{table}" WHERE {base_where}'
             cur.execute(pop_query, tuple(params))
             pop_rows = cur.fetchall()
 
