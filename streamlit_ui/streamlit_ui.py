@@ -19,8 +19,7 @@ import re
 # Configuration
 # =============================================================================
 # load_dotenv()
-# API_URL = os.environ["API_URL"].rstrip("/")
-API_URL="http://127.0.0.1:8000"
+API_URL = os.environ["API_URL"].rstrip("/")
 
 ID_COLUMNS = {
     "SK_ID_CURR",
