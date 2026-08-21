@@ -1516,36 +1516,45 @@ if customer_loaded:
 
                         plt.close(figure)
 
+                        # Tableau de données pour l'accessibilité
+                        with st.expander(f"Afficher les données du graphique '{column}' (Accessibilité)"):
+                            bin_edges = distribution.get("bin_edges", [])
+                            count_0 = distribution.get("count_target_0", [])
+                            count_1 = distribution.get("count_target_1", [])
+                            count_na = distribution.get("count_target_na", [])
+                            
+                            # Vérification que les données sont prêtes pour un tableau
+                            if len(bin_edges) >= 2 and len(count_0) == len(bin_edges) - 1:
+                                df_dist = pd.DataFrame({
+                                    "Début intervalle": bin_edges[:-1],
+                                    "Fin intervalle": bin_edges[1:],
+                                    "Problème paiement": count_0,
+                                    "Pas de problème": count_1,
+                                    "Pas de données": count_na
+                                })
+                                st.dataframe(df_dist, use_container_width=True, hide_index=True)
+                            else:
+                                st.info("Données tabulaires non disponibles.")
+
+                        # Construction et affichage de la légende textuelle
                         caption = []
 
-                        customer_value = distribution.get(
-                            "customer_value"
-                        )
+                        customer_value = distribution.get("customer_value")
                         percentile = distribution.get("percentile")
                         mean_value = distribution.get("mean")
                         standard_deviation = distribution.get("std")
 
                         if is_numeric(customer_value):
-                            caption.append(
-                                f"Customer: "
-                                f"**{customer_value:,.4g}**"
-                            )
+                            caption.append(f"Customer: **{customer_value:,.4g}**")
 
                         if is_numeric(percentile):
-                            caption.append(
-                                f"Percentile: "
-                                f"**P{percentile:.0f}**"
-                            )
+                            caption.append(f"Percentile: **P{percentile:.0f}**")
 
                         if is_numeric(mean_value):
-                            caption.append(
-                                f"Mean: {mean_value:,.4g}"
-                            )
+                            caption.append(f"Mean: {mean_value:,.4g}")
 
                         if is_numeric(standard_deviation):
-                            caption.append(
-                                f"Std: {standard_deviation:,.4g}"
-                            )
+                            caption.append(f"Std: {standard_deviation:,.4g}")
 
                         if caption:
                             st.caption(" · ".join(caption))
@@ -1705,6 +1714,55 @@ if customer_loaded:
                     f"**{bivariate_result['column_y']}**: "
                     f"{customer_y:,.4g}"
                 )
+
+            # Synthèse d'accessibilité pour l'analyse bivariée
+            with st.expander("Résumé de positionnement du client (Accessibilité)"):
+                pop_x = np.asarray(bivariate_data.get("pop_x", []))
+                pop_y = np.asarray(bivariate_data.get("pop_y", []))
+                target = np.asarray(bivariate_data.get("TARGET", []))
+                
+                cx = bivariate_data.get("customer_x")
+                cy = bivariate_data.get("customer_y")
+
+                if len(pop_x) > 0 and len(pop_x) == len(target) and is_numeric(cx) and is_numeric(cy):
+                    mask_issue = (target == 0)
+                    mask_ok = (target == 1)
+
+                    # Calcul des moyennes pour l'axe X et Y
+                    mean_x_issue = np.nanmean(pop_x[mask_issue]) if np.any(mask_issue) else None
+                    mean_y_issue = np.nanmean(pop_y[mask_issue]) if np.any(mask_issue) else None
+                    
+                    mean_x_ok = np.nanmean(pop_x[mask_ok]) if np.any(mask_ok) else None
+                    mean_y_ok = np.nanmean(pop_y[mask_ok]) if np.any(mask_ok) else None
+
+                    # Construction du tableau synthétique
+                    summary_data = [
+                        {
+                            "Profil / Groupe": "Problème de paiement",
+                            f"Moyenne {bivariate_result['column_x']}": f"{mean_x_issue:,.4g}" if is_numeric(mean_x_issue) else "N/A",
+                            f"Moyenne {bivariate_result['column_y']}": f"{mean_y_issue:,.4g}" if is_numeric(mean_y_issue) else "N/A",
+                        },
+                        {
+                            "Profil / Groupe": "Pas de problème",
+                            f"Moyenne {bivariate_result['column_x']}": f"{mean_x_ok:,.4g}" if is_numeric(mean_x_ok) else "N/A",
+                            f"Moyenne {bivariate_result['column_y']}": f"{mean_y_ok:,.4g}" if is_numeric(mean_y_ok) else "N/A",
+                        },
+                        {
+                            "Profil / Groupe": "📍 CLIENT SÉLECTIONNÉ",
+                            f"Moyenne {bivariate_result['column_x']}": f"{cx:,.4g}",
+                            f"Moyenne {bivariate_result['column_y']}": f"{cy:,.4g}",
+                        },
+                    ]
+
+                    df_summary = pd.DataFrame(summary_data)
+                    st.dataframe(df_summary, use_container_width=True, hide_index=True)
+
+                    st.markdown(
+                        f"**Interprétation textuelle :** Comparaison des coordonnées du client (`{cx:,.4g}`, `{cy:,.4g}`) "
+                        f"par rapport aux centres des deux populations (avec ou sans défaut de paiement)."
+                    )
+                else:
+                    st.info("Données de comparaison non disponibles.")
 
     # -------------------------------------------------------------------------
     # What-if simulation
