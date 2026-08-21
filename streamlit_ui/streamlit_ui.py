@@ -931,7 +931,7 @@ def plot_distribution(
         axis.text(
             0.97,
             0.95,
-            f"{arrow} P{percentile:.0f}",
+            f"{arrow} Customer percentile: {percentile:.0f}",
             transform=axis.transAxes,
             color="#c9d1d9",
             fontsize=9,
