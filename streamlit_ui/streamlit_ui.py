@@ -861,7 +861,6 @@ def plot_distribution(
             edgecolor="#ffffff",
             hatch="xx",
             alpha=0.8,
-            edgecolor="none",
             label="Payement issue",
             zorder=2,
         )
@@ -875,7 +874,6 @@ def plot_distribution(
             color="#2ea043",
             edgecolor="#ffffff",
             alpha=0.8,
-            edgecolor="none",
             label="No payement issue",
             zorder=2,
         )
@@ -887,7 +885,6 @@ def plot_distribution(
             bottom=count_target_0 + count_target_1,
             color="#2d6cdf",
             alpha=0.8,
-            edgecolor="none",
             label="No data",
             zorder=2,
         )
