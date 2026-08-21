@@ -1055,6 +1055,7 @@ def plot_bivariate(
                     population_x[mask_missing],
                     population_y[mask_missing],
                     color="#2d6cdf",
+                    marker="s",
                     alpha=0.35,
                     s=14,
                     edgecolor="none",
