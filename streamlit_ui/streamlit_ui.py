@@ -858,9 +858,10 @@ def plot_distribution(
             count_target_0,
             width=widths * 0.92,
             color="#f85149",
+            hatch="xx",
             alpha=0.8,
             edgecolor="none",
-            label="TARGET = 0",
+            label="Payement issue",
             zorder=2,
         )
 
@@ -869,10 +870,11 @@ def plot_distribution(
             count_target_1,
             width=widths * 0.92,
             bottom=count_target_0,
+            hatch="//",
             color="#2ea043",
             alpha=0.8,
             edgecolor="none",
-            label="TARGET = 1",
+            label="No payement issue",
             zorder=2,
         )
 
@@ -884,7 +886,7 @@ def plot_distribution(
             color="#2d6cdf",
             alpha=0.8,
             edgecolor="none",
-            label="TARGET = NA",
+            label="No data",
             zorder=2,
         )
 
@@ -1027,10 +1029,11 @@ def plot_bivariate(
                     population_x[mask_0],
                     population_y[mask_0],
                     color="#f85149",
+                    marker="^",
                     alpha=0.35,
                     s=14,
                     edgecolor="none",
-                    label="TARGET = 0",
+                    label="Payement issue",
                     zorder=2,
                 )
 
@@ -1039,10 +1042,11 @@ def plot_bivariate(
                     population_x[mask_1],
                     population_y[mask_1],
                     color="#2ea043",
+                    marker="o",
                     alpha=0.35,
                     s=14,
                     edgecolor="none",
-                    label="TARGET = 1",
+                    label="No payement issue",
                     zorder=2,
                 )
 
@@ -1054,7 +1058,7 @@ def plot_bivariate(
                     alpha=0.35,
                     s=14,
                     edgecolor="none",
-                    label="TARGET missing",
+                    label="No data",
                     zorder=2,
                 )
 
