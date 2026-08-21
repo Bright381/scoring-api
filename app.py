@@ -11,7 +11,8 @@ from utils.get_data import (
     get_raw_tables_dic,
     TABLES,
     get_column_stats,
-    fetch_target
+    fetch_target,
+    fetch_population_targets
 )
 from utils.get_shap import get_importances, plot
 from utils.single_row_preprocessing import preprocess, apply_custom_values

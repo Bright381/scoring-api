@@ -2,6 +2,7 @@ import psycopg
 import pandas as pd
 import numpy as np
 import os
+from functools import lru_cache
 from typing import Any
 from utils.single_row_preprocessing import (
     preprocess,
@@ -50,27 +51,64 @@ def fetch_target(sk_id: int):
     return {"TARGET": (int(row[0]) if row is not None and row[0] is not None else None)}
 
 
+@lru_cache(maxsize=1)
+def fetch_target_map() -> dict:
+    """Return {SK_ID_CURR: TARGET|None} for the whole population.
+
+    TARGET lives only in application_test; every other table must resolve it
+    through this map (joined on SK_ID_CURR) rather than reading it directly.
+    Computed once and cached for the process lifetime.
+    """
+    with psycopg.connect(DB_URL) as conn:
+        with conn.cursor() as cur:
+            cur.execute('SELECT "SK_ID_CURR", "TARGET" FROM application_test')
+            rows = cur.fetchall()
+    return {int(sk): (int(t) if t is not None else None) for sk, t in rows}
+
+
+def _fetch_population_value_ids(cur, table: str, column: str, filter_col: str = None, filter_val: Any = None) -> list:
+    """Return (column_value, SK_ID_CURR) rows for `table`, applying the NOT-NULL/filter WHERE clause.
+
+    bureau_balance has no SK_ID_CURR column directly, so it is joined through bureau
+    (same pattern used by fetch_table_rows and get_bivariate_data's customer query).
+    """
+    params = []
+    if table == "bureau_balance":
+        where = f'bb."{column}" IS NOT NULL'
+        if filter_col and filter_val is not None:
+            where += f' AND bb."{filter_col}" = %s'
+            params.append(str(filter_val))
+        query = f"""
+            SELECT bb."{column}", b."SK_ID_CURR"
+            FROM "bureau_balance" bb
+            JOIN "bureau" b ON b."SK_ID_BUREAU" = bb."SK_ID_BUREAU"
+            WHERE {where}
+        """
+    else:
+        where = f'"{column}" IS NOT NULL'
+        if filter_col and filter_val is not None:
+            where += f' AND "{filter_col}" = %s'
+            params.append(str(filter_val))
+        query = f'SELECT "{column}", "SK_ID_CURR" FROM "{table}" WHERE {where}'
+
+    cur.execute(query, tuple(params))
+    return cur.fetchall()
+
+
 def fetch_population_targets(table: str, column: str, filter_col: str = None, filter_val: Any = None) -> list:
     """Return a list of TARGET values for the population sample used to build distributions.
 
-    The list preserves ordering and contains 0, 1, or None for SQL NULLs. Caps at 10k rows to match distribution sampling.
+    The list preserves ordering and contains 0, 1, or None for SQL NULLs.
     """
     if table not in TABLES:
         raise ValueError(f"Unknown table '{table}'.")
 
+    target_map = fetch_target_map()
     with psycopg.connect(DB_URL) as conn:
         with conn.cursor() as cur:
-            base_where = f'"{column}" IS NOT NULL'
-            params = []
-            if filter_col and filter_val is not None:
-                base_where += f' AND "{filter_col}" = %s'
-                params.append(str(filter_val))
+            rows = _fetch_population_value_ids(cur, table, column, filter_col, filter_val)
 
-            query = f'SELECT "TARGET" FROM "{table}" WHERE {base_where}'
-            cur.execute(query, tuple(params))
-            rows = cur.fetchall()
-
-    return [(int(r[0]) if r[0] is not None else None) for r in rows]
+    return [target_map.get(int(sk)) if sk is not None else None for _, sk in rows]
 
 def fetch_unique_values(table: str, column: str):
     with psycopg.connect(DB_URL) as conn:
@@ -174,45 +212,37 @@ def get_column_stats(table: str, column: str, sk_id: int, filter_col: str = None
                 (sk_id,)
             )
             cust_row = cur.fetchone()
- 
-            base_where = f'"{column}" IS NOT NULL'
-            params = []
-            
-            if filter_col and filter_val is not None:
-                base_where += f' AND "{filter_col}" = %s'
-                params.append(str(filter_val))
-                
-            cur.execute(
-                f'SELECT "{column}" FROM "{table}" WHERE {base_where}',
-                tuple(params)
-            )
-            pop_rows = cur.fetchall()
- 
-    # Clean population and parse floats. Keep track of TARGETs.
-    valid_rows = [r for r in pop_rows if r[0] is not None]
-    population = np.array([r[0] for r in valid_rows], dtype=float)
- 
+
+            pop_rows = _fetch_population_value_ids(cur, table, column, filter_col, filter_val)
+
+    target_map = fetch_target_map()
+
+    # Clean population and parse floats. Resolve each row's TARGET via SK_ID_CURR.
+    valid_rows = [(v, sk) for v, sk in pop_rows if v is not None]
+    population = np.array([v for v, _ in valid_rows], dtype=float)
+    targets = [target_map.get(int(sk)) if sk is not None else None for _, sk in valid_rows]
+
     customer_val = None
     if cust_row is not None and cust_row[0] is not None:
         try:
             customer_val = float(cust_row[0])
         except (TypeError, ValueError):
             pass
- 
+
     if population.size == 0:
         return {
             "bin_edges": [], "count_target_0": [], "count_target_1": [], "count_target_na": [],
             "customer_value": customer_val,
             "percentile": None, "mean": None, "median": None, "std": None, "n": 0,
         }
- 
+
     # Calculate overall bin edges
     _, bin_edges = np.histogram(population, bins=30)
-    
+
     # Separate populations by target class
-    pop_target_0 = np.array([r[0] for r in valid_rows if r[1] == 0], dtype=float)
-    pop_target_1 = np.array([r[0] for r in valid_rows if r[1] == 1], dtype=float)
-    pop_target_na = np.array([r[0] for r in valid_rows if r[1] is None], dtype=float)
+    pop_target_0 = np.array([v for (v, _), t in zip(valid_rows, targets) if t == 0], dtype=float)
+    pop_target_1 = np.array([v for (v, _), t in zip(valid_rows, targets) if t == 1], dtype=float)
+    pop_target_na = np.array([v for (v, _), t in zip(valid_rows, targets) if t is None], dtype=float)
 
     # Compute per-target histograms
     count_target_0, _ = np.histogram(pop_target_0, bins=bin_edges)
